@@ -9,7 +9,17 @@ const PROJECT = {
     { value: "2.574 m²", label: "totales" },
     { value: "40,50 m²", label: "de amenities" },
   ],
-  // Imagen de fondo de la pantalla de inicio.
+  // Video de la pantalla de inicio (en loop: arranca y termina con la vista desde arriba). Al tocar el edificio sigue
+  // `riseAt` (segundos): cuando la cámara empieza a subir se van los textos. Al terminar se entra solo a la implantación.
+  // `match`: dónde está el lote en el primer cuadro del video (píxeles de un cuadro de 1920×1080): ancho del lote y su
+  // centro. Con eso la cámara del mapa termina el vuelo con el mismo encuadre y el cambio al video no se nota.
+  introVideo: {
+    src: "video/intro.mp4", phone: "video/intro-movil.mp4", poster: "img/cuadros/intro-inicio.jpg", riseAt: 19.5,
+    match: { lotPx: 624, lotCenter: [1002, 410] },
+    // Lo mismo en el último cuadro: ahí la implantación aparece encima del lote y después se acomoda.
+    matchEnd: { lotPx: 632, lotCenter: [1028, 424] },
+  },
+  // Imagen de fondo de la pantalla de inicio (si no hay video).
   cover: "img/fachada-noche.jpg",
   // Centro del lote (en Google Maps: clic derecho sobre el lugar y copiar las coordenadas).
   center: [-68.592140, -31.527967], // [lng, lat]

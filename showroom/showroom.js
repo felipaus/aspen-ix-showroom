@@ -83,6 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("intro-tagline").textContent = PROJECT.tagline;
   $("intro-stats").innerHTML = (PROJECT.stats ?? []).map(({ value, label }) => `<li><strong>${value}</strong>${label}</li>`).join("");
   if (PROJECT.cover) $("intro").style.setProperty("--intro-bg", `url("${PROJECT.cover}")`);
+  initIntroVideo();
   initMap();
   initUi();
 });
@@ -630,8 +631,63 @@ function startLoadingProgress() {
     if (progress < 100) return requestAnimationFrame(tick);
     $("intro-progress").hidden = true;
     $("enter-btn").hidden = false;
+    $("intro").classList.add("ready");
   };
   requestAnimationFrame(tick);
+}
+
+// Pantalla del video: al terminar el vuelo del mapa (o al omitirlo) el mapa desde arriba se funde en el video, que
+// arranca también desde arriba. Queda en loop; al tocar el edificio sigue hasta que la cámara sube y recién ahí se
+// entra a la implantación.
+let introLeaving = false;
+
+function initIntroVideo() {
+  const cfg = PROJECT.introVideo;
+  if (!cfg) return;
+  const v = $("intro-video");
+  v.poster = cfg.poster ?? "";
+  v.src = isPhone() && cfg.phone ? cfg.phone : cfg.src; // queda bajando mientras corre el vuelo
+  $("hero-name").textContent = PROJECT.name;
+  $("hero-tagline").textContent = PROJECT.tagline;
+  $("hero-stats").innerHTML = $("intro-stats").innerHTML;
+}
+
+function showHero() {
+  const hero = $("hero");
+  const v = $("intro-video");
+  if (!hero.hidden) return;
+  const cfg = PROJECT.introVideo;
+  v.loop = false; // se ve una sola vez y al terminar se entra solo
+  try { v.currentTime = 0; } catch {}
+  v.addEventListener("timeupdate", () => {
+    if (v.currentTime >= cfg.riseAt) hero.classList.add("leaving"); // la cámara sube: se van los textos
+    if (v.duration && v.currentTime >= v.duration - 0.2) leaveHero();
+  });
+  v.addEventListener("ended", leaveHero);
+  v.addEventListener("error", () => setTimeout(leaveHero, 2500));
+  // Si el navegador no deja reproducir solo, queda el primer cuadro un momento y se entra igual.
+  v.play().catch(() => setTimeout(leaveHero, 2500));
+  hero.hidden = false;
+  void hero.offsetWidth; // que arranque en opacidad 0 y haya fundido
+  hero.classList.add("visible");
+}
+
+// Fin del video (vista desde arriba): la cámara del mapa se pone en el encuadre del último cuadro, así la implantación
+// arranca encima del lote del video, en el mismo lugar y tamaño; el video se funde y la imagen se acomoda en su lugar.
+function leaveHero() {
+  if (introLeaving) return;
+  introLeaving = true;
+  const hero = $("hero");
+  const cfg = PROJECT.introVideo;
+  hero.classList.add("leaving", "ending");
+  map.jumpTo(videoMatchView(cfg.matchEnd ?? cfg.match));
+  showPlanView(true, { force: true, holdMs: 900 });
+  hero.classList.remove("visible");
+  setTimeout(() => {
+    hero.hidden = true;
+    $("intro-video").pause();
+    map.jumpTo(finalView()); // para "Ver en el mapa"
+  }, 1800);
 }
 
 async function runIntro() {
@@ -663,10 +719,20 @@ async function runIntro() {
     // El título se va antes, para no quedar encima de la implantación.
     if (!skipped) {
       $("title-card").classList.add("leaving");
-      await Promise.all([
-        easeTo({ ...finalView(), duration: TOP_DOWN_MS }),
-        delay(TOP_DOWN_MS * 0.4).then(fadeInSitePlan),
-      ]);
+      if (PROJECT.introVideo) {
+        // Baja hasta el encuadre exacto del primer cuadro del video, borrando calles y contorno (el video no los
+        // tiene), y ahí el mapa se funde en el video.
+        await Promise.all([easeTo({ ...videoMatchView(), duration: TOP_DOWN_MS }), fadeMarks(TOP_DOWN_MS * 0.7)]);
+        if (!skipped) {
+          showHero();
+          await delay(950);
+        }
+      } else {
+        await Promise.all([
+          easeTo({ ...finalView(), duration: TOP_DOWN_MS }),
+          delay(TOP_DOWN_MS * 0.4).then(fadeInSitePlan),
+        ]);
+      }
     }
     if (skipped) return clearInterval(countdown);
   } else {
@@ -750,7 +816,62 @@ function fadeInSitePlan() {
 }
 
 // Estado final de la intro con implantación (también al omitirla).
+// Encuadre del mapa igual al primer cuadro del video para esta pantalla. El video se ve con `cover`: se escala hasta
+// cubrir la pantalla y se recorta lo que sobra, así que la escala es la mayor de las dos.
+function videoMatchView(m = PROJECT.introVideo.match) {
+  const { lotPx, lotCenter } = m;
+  const scale = Math.max(innerWidth / 1920, innerHeight / 1080);
+  const lat = (sitePlan.center[1] * Math.PI) / 180;
+  const mpp = sitePlan.widthMeters / lotPx / scale; // metros por píxel de pantalla
+  const zoom = Math.log2((40_075_016.7 * Math.cos(lat)) / 512 / mpp);
+  // El lote no está en el centro del cuadro: el centro de la cámara se corre lo mismo, en metros, según el giro.
+  const b = (sitePlan.topBearing * Math.PI) / 180;
+  const ox = (lotCenter[0] - 960) * scale * mpp; // metros a la derecha
+  const oy = (lotCenter[1] - 540) * scale * mpp; // metros hacia abajo
+  const up = [Math.sin(b), Math.cos(b)]; // [este, norte]
+  const right = [Math.cos(b), -Math.sin(b)];
+  const east = -ox * right[0] + oy * up[0];
+  const north = -ox * right[1] + oy * up[1];
+  const center = [sitePlan.center[0] + east / (111_320 * Math.cos(lat)), sitePlan.center[1] + north / 111_320];
+  return {
+    center, zoom, pitch: 0, bearing: sitePlan.topBearing,
+    elevation: map.queryTerrainElevation(sitePlan.center) ?? PROJECT.groundElevation,
+    padding: { top: 0, bottom: 0, left: 0, right: 0 },
+  };
+}
+
+// Calles marcadas y contorno del lote: se borran al llegar al encuadre del video y vuelven después (las opacidades se
+// animan desde acá: el mapa tiene las transiciones de pintura en 0).
+const MARK_LAYERS = ["streets-glow", "streets-line", "plan-lot-line", "plan-lot-fill"];
+let markOpacity = null;
+const opacityProp = (id) => (map.getLayer(id)?.type === "fill" ? "fill-opacity" : "line-opacity");
+
+function fadeMarks(ms) {
+  markOpacity ??= Object.fromEntries(
+    MARK_LAYERS.filter((id) => map.getLayer(id)).map((id) => [id, map.getPaintProperty(id, opacityProp(id)) ?? 1])
+  );
+  streetLabels.forEach(({ marker }) => marker.getElement().classList.remove("on"));
+  const from = Object.entries(markOpacity).filter(([, o]) => typeof o === "number");
+  const t0 = performance.now();
+  return new Promise((resolve) => {
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      from.forEach(([id, o]) => map.setPaintProperty(id, opacityProp(id), o * (1 - k)));
+      if (k < 1) requestAnimationFrame(step);
+      else resolve();
+    };
+    step();
+  });
+}
+
+function restoreMarks() {
+  if (!markOpacity) return;
+  Object.entries(markOpacity).forEach(([id, o]) => map.setPaintProperty(id, opacityProp(id), o));
+  markOpacity = null;
+}
+
 function showSitePlanFinal() {
+  restoreMarks();
   map.getSource("streets").setData(streetsUpTo(Infinity));
   streetLabels.forEach(({ marker }) => marker.getElement().classList.add("on"));
   map.getSource("plan-lot-outline").setData(lotOutline(1));
@@ -761,14 +882,17 @@ function showSitePlanFinal() {
 function skipIntro() {
   skipped = true;
   map.stop();
-  map.jumpTo({ elevation: PROJECT.groundElevation, ...finalView() });
+  map.jumpTo({ elevation: PROJECT.groundElevation, ...(PROJECT.introVideo && sitePlan ? videoMatchView() : finalView()) });
   finishIntro();
 }
 
 function finishIntro() {
   map.setCenterClampedToGround(true);
   map.getSource("project").setData(buildingFeatures(PROJECT.floors));
-  if (sitePlan) showSitePlanFinal();
+  if (sitePlan) {
+    if (PROJECT.introVideo) setTimeout(showSitePlanFinal, 1000);
+    else showSitePlanFinal();
+  }
   $("intro-controls").hidden = true;
   setTimeout(() => ($("title-card").hidden = true), skipped ? 0 : 1800);
   INTERACTION_HANDLERS.forEach((h) => map[h].enable());
@@ -784,7 +908,9 @@ function finishIntro() {
     $("search-btn").hidden = true;
     $("tour-btn").hidden = true;
     $("view-toggle").hidden = false;
-    setTimeout(() => showPlanView(true), skipped ? 0 : 300);
+    // Con video: el mapa desde arriba se funde en el video y la implantación se abre al tocar el edificio.
+    if (PROJECT.introVideo) showHero();
+    else setTimeout(() => showPlanView(true), skipped ? 0 : 300);
   } else {
     ["topbar", "floor-rail", "hint"].forEach((id) => ($(id).hidden = false));
     setTimeout(() => ($("hint").hidden = true), 6000);
@@ -1539,7 +1665,7 @@ function closeUnitView() {
 }
 
 // Sale del mapa a la imagen sola (o vuelve), con un fundido.
-function showPlanView(show) {
+function showPlanView(show, { force = false, holdMs = 0 } = {}) {
   planViewOn = show;
   const view = $("plan-view");
   if (amenitiesPin) amenitiesPin.getElement().hidden = true;
@@ -1548,7 +1674,7 @@ function showPlanView(show) {
     view.hidden = false;
     void view.offsetWidth; // que el navegador vea opacidad 0 antes de pasar a 1, si no no hay fundido
     if (isPhone()) view.scrollLeft = (view.scrollWidth - view.clientWidth) / 2; // arranca en el centro del conjunto
-    morphFromMap();
+    morphFromMap(force, holdMs);
     preloadUnitImages();
   } else {
     setTimeout(() => planViewOn || (view.hidden = true), 800);
@@ -1558,7 +1684,9 @@ function showPlanView(show) {
 
 // Al pasar del mapa a la vista a pantalla completa, la imagen arranca exactamente donde y del tamaño en que se ve en
 // el mapa y se acomoda suave a su lugar: así el pase queda centrado y sin salto en cualquier pantalla.
-function morphFromMap() {
+// force: arranca desde donde está en el mapa aunque el tamaño sea muy distinto (fin del video). holdMs: se queda ahí
+// ese tiempo (mientras se funde) antes de acomodarse, con un movimiento más largo.
+function morphFromMap(force = false, holdMs = 0) {
   const stage = document.querySelector(".plan-stage");
   stage.style.transition = "none";
   stage.style.transform = "";
@@ -1571,11 +1699,19 @@ function morphFromMap() {
   const cy = (Math.max(...ys) + Math.min(...ys)) / 2;
   // Si la imagen en el mapa quedó muy distinta (se omitió la intro, o el mapa se movió a mano), solo el fundido.
   const scale = w / r.width;
-  if (!(scale > 0.6 && scale < 1.6)) return (stage.style.transition = "");
+  if (!force && !(scale > 0.6 && scale < 1.6)) return (stage.style.transition = "");
   stage.style.transform = `translate(${cx - (r.left + r.width / 2)}px, ${cy - (r.top + r.height / 2)}px) scale(${scale})`;
   void stage.offsetWidth; // que el navegador tome la posición de arranque antes de animar
-  stage.style.transition = "";
-  stage.style.transform = "";
+  if (!holdMs) {
+    stage.style.transition = "";
+    stage.style.transform = "";
+    return;
+  }
+  setTimeout(() => {
+    stage.style.transition = "transform 1.8s cubic-bezier(.65, 0, .25, 1)";
+    stage.style.transform = "";
+    setTimeout(() => (stage.style.transition = ""), 1900);
+  }, holdMs);
 }
 
 // Baja de antemano lo primero que se ve al tocar un departamento o la pileta, así se abre sin esperas.

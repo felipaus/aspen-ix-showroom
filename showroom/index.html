@@ -20,9 +20,9 @@
   <script src="vendor/maplibre-5.24.0/maplibre-gl.js" defer></script>
 
   <!-- ?v= obliga al navegador a bajar la versión nueva: subir el número cada vez que cambien estos archivos -->
-  <link rel="stylesheet" href="showroom.css?v=44" />
-  <script src="data.js?v=38" defer></script>
-  <script src="showroom.js?v=53" defer></script>
+  <link rel="stylesheet" href="showroom.css?v=47" />
+  <script src="data.js?v=41" defer></script>
+  <script src="showroom.js?v=58" defer></script>
 </head>
 <body>
   <div id="map"></div>
@@ -43,6 +43,17 @@
     </div>
     <p id="intro-progress" class="intro-progress">0%</p>
     <button id="enter-btn" class="enter-btn" hidden>Entrar</button>
+  </section>
+
+  <!-- Pantalla del video: aparece al terminar el vuelo (el mapa desde arriba se funde en el video, que arranca desde
+       arriba). Queda en loop; al tocar el edificio la cámara sube y se entra a la implantación. -->
+  <section id="hero" class="hero" hidden>
+    <video id="intro-video" class="hero-video" muted loop playsinline preload="auto"></video>
+    <div class="hero-text">
+      <h1 id="hero-name"></h1>
+      <p id="hero-tagline"></p>
+      <ul id="hero-stats" class="intro-stats"></ul>
+    </div>
   </section>
 
   <!-- Título que aparece durante el vuelo -->

@@ -1028,11 +1028,18 @@ function unitPlanSvg(u) {
 
 // ---------- Recorridos 360° ----------
 
-function openTour(id = TOURS_360[0].id) {
+// Con `typology` (desde un departamento) muestra solo el recorrido de esa tipología, sin pestañas. Sin ella (botones
+// generales) muestra todos, con una pestaña por tipología; `id` es la pestaña abierta.
+function openTour(typology, id = typology) {
   orbiting = false;
-  $("tour-tabs").innerHTML = TOURS_360.map((t) => `<button class="chip${t.id === id ? " active" : ""}" data-tour="${t.id}">${t.label}</button>`).join("");
-  $("tour-tabs").querySelectorAll("[data-tour]").forEach((el) => el.addEventListener("click", () => openTour(el.dataset.tour)));
-  const tour = TOURS_360.find((t) => t.id === id);
+  const only = TOURS_360.find((t) => t.id === typology);
+  const tour = only ?? TOURS_360.find((t) => t.id === id) ?? TOURS_360[0];
+  $("tour-title").textContent = only ? `Recorrido 360° · ${only.label}` : "Recorrido 360°";
+  $("tour-tabs").hidden = !!only;
+  $("tour-tabs").innerHTML = only
+    ? ""
+    : TOURS_360.map((t) => `<button class="chip${t.id === tour.id ? " active" : ""}" data-tour="${t.id}">${t.label}</button>`).join("");
+  $("tour-tabs").querySelectorAll("[data-tour]").forEach((el) => el.addEventListener("click", () => openTour(null, el.dataset.tour)));
   if ($("tour-frame").src !== tour.url) $("tour-frame").src = tour.url;
   $("tour-link").href = tour.url;
   $("tour-modal").hidden = false;

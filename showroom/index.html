@@ -22,7 +22,7 @@
   <!-- ?v= obliga al navegador a bajar la versión nueva: subir el número cada vez que cambien estos archivos -->
   <link rel="stylesheet" href="showroom.css?v=35" />
   <script src="data.js?v=32" defer></script>
-  <script src="showroom.js?v=44" defer></script>
+  <script src="showroom.js?v=45" defer></script>
 </head>
 <body>
   <div id="map"></div>
@@ -201,7 +201,7 @@
     <div class="modal-backdrop" data-close-tour></div>
     <div class="modal-card tour-card">
       <div class="modal-head">
-        <h2>Recorrido 360°</h2>
+        <h2 id="tour-title">Recorrido 360°</h2>
         <button class="close" data-close-tour aria-label="Cerrar">×</button>
       </div>
       <div id="tour-tabs" class="chips"></div>

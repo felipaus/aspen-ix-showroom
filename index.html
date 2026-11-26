@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parrot Diseño | Estudio de Arquitectura · San Juan</title>
+  <meta name="description" content="Estudio de arquitectura en San Juan. Conocé nuestras obras en el mapa." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@500;700&display=swap" rel="stylesheet" />
+
+  <!-- Leaflet: mapa (OpenStreetMap, gratis). Copia local en vendor/ para no depender de un CDN. -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <script src="vendor/leaflet/leaflet.js" defer></script>
+
+  <link rel="stylesheet" href="styles.css" />
+  <script src="projects.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="nav">
+    <a href="#inicio" class="logo">parrot<span>diseño</span></a>
+    <nav>
+      <a href="#mapa">Mapa</a>
+      <a href="#proyectos">Proyectos</a>
+      <a href="#estudio">Estudio</a>
+      <a href="#contacto" class="btn-small">Contacto</a>
+    </nav>
+  </header>
+
+  <section id="inicio" class="hero">
+    <div class="hero-content">
+      <p class="eyebrow">Estudio de arquitectura · San Juan, Argentina</p>
+      <h1>Diseñamos espacios<br />que cuentan historias</h1>
+      <p class="lead">Vivienda, comercio e interiorismo en toda la provincia.</p>
+      <a href="#mapa" class="btn">Ver obras en el mapa</a>
+    </div>
+  </section>
+
+  <section id="mapa" class="section">
+    <div class="section-head">
+      <h2>Nuestras obras en San Juan</h2>
+      <p>Tocá un punto para ver el proyecto.</p>
+    </div>
+    <div class="map-layout">
+      <div id="map" aria-label="Mapa de San Juan con proyectos"></div>
+      <aside id="map-list" class="map-list"></aside>
+    </div>
+  </section>
+
+  <section id="proyectos" class="section section-alt">
+    <div class="section-head">
+      <h2>Proyectos</h2>
+      <div id="filters" class="filters"></div>
+    </div>
+    <div id="grid" class="grid"></div>
+  </section>
+
+  <section id="estudio" class="section">
+    <div class="studio">
+      <div class="studio-img" aria-hidden="true"></div>
+      <div>
+        <h2>El estudio</h2>
+        <p>
+          Somos un estudio de arquitectura y diseño con base en San Juan. Acompañamos cada
+          proyecto desde la idea hasta la obra terminada, con foco en el clima, el paisaje
+          cuyano y la forma de vivir de cada cliente.
+        </p>
+        <ul class="stats">
+          <li><strong>+40</strong><span>obras</span></li>
+          <li><strong>8</strong><span>departamentos</span></li>
+          <li><strong>10</strong><span>años</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="contacto" class="section section-dark">
+    <div class="section-head">
+      <h2>¿Tenés un proyecto?</h2>
+      <p>Escribinos y lo charlamos.</p>
+    </div>
+    <div class="contact">
+      <a class="btn" id="wa-link" target="_blank" rel="noopener">WhatsApp</a>
+      <a class="btn btn-outline" href="https://www.instagram.com/parrotdiseno/" target="_blank" rel="noopener">Instagram</a>
+    </div>
+  </section>
+
+  <footer class="footer">© <span id="year"></span> Parrot Diseño · San Juan, Argentina</footer>
+
+  <!-- Ficha de proyecto -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" data-close aria-label="Cerrar">×</button>
+      <div id="modal-cover" class="modal-cover"></div>
+      <div class="modal-body">
+        <p id="modal-tag" class="tag"></p>
+        <h3 id="modal-title"></h3>
+        <p id="modal-desc"></p>
+        <dl id="modal-meta" class="meta"></dl>
+      </div>
+    </article>
+  </div>
+</body>
+</html>

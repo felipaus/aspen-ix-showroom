@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aspen IX · Showroom virtual | Parrot Diseño</title>
+  <meta name="description" content="Recorré Aspen IX: ubicación en San Juan, implantación, unidades disponibles, renders y recorridos 360°." />
+  <!-- Vista previa al compartir el link (WhatsApp, redes) -->
+  <meta property="og:title" content="Aspen IX · Showroom virtual" />
+  <meta property="og:description" content="Ubicación, unidades disponibles, renders y recorridos 360°." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#0f1412" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@500;700&display=swap" rel="stylesheet" />
+
+  <!-- MapLibre: mapa 3D (copia local en vendor/). La 5 maneja mejor la cámara sobre el relieve que la 4.7.1 (vendor/maplibre). -->
+  <link rel="stylesheet" href="vendor/maplibre-5.24.0/maplibre-gl.css" />
+  <script src="vendor/maplibre-5.24.0/maplibre-gl.js" defer></script>
+
+  <!-- ?v= obliga al navegador a bajar la versión nueva: subir el número cada vez que cambien estos archivos -->
+  <link rel="stylesheet" href="showroom.css?v=34" />
+  <script src="data.js?v=30" defer></script>
+  <script src="showroom.js?v=43" defer></script>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Intro: logo + carga + Entrar -->
+  <section id="intro" class="intro">
+    <div class="intro-logo">
+      <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="54" class="ring-bg" />
+        <circle cx="60" cy="60" r="54" class="ring-fg" id="ring-fg" />
+      </svg>
+      <div class="intro-mark">parrot<span>diseño</span></div>
+    </div>
+    <div class="intro-text">
+      <h1 id="intro-name"></h1>
+      <p id="intro-tagline"></p>
+    </div>
+    <p id="intro-progress" class="intro-progress">0%</p>
+    <button id="enter-btn" class="enter-btn" hidden>Entrar</button>
+  </section>
+
+  <!-- Título que aparece durante el vuelo -->
+  <div id="title-card" class="title-card" hidden>
+    <p class="eyebrow">San Juan · Argentina</p>
+    <h1 id="project-name"></h1>
+    <p id="project-tagline"></p>
+  </div>
+
+  <!-- Controles durante la intro -->
+  <div id="intro-controls" class="intro-controls" hidden>
+    <button id="skip-btn" class="pill">Omitir intro</button>
+    <span id="countdown"></span>
+  </div>
+
+  <!-- UI del showroom -->
+  <header id="topbar" class="topbar" hidden>
+    <div class="brand">parrot<span>diseño</span></div>
+    <button id="search-btn" class="glass search-btn">
+      <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Buscar Unidades
+    </button>
+    <button id="tour-btn" class="glass search-btn">Recorrido 360°</button>
+    <button id="facade-btn" class="glass search-btn" hidden>Vista exterior</button>
+    <button id="nearby-btn" class="glass search-btn" hidden>Alrededores</button>
+    <button id="view-toggle" class="glass search-btn" hidden>Ver en el mapa</button>
+    <button id="fullscreen-btn" class="glass icon-btn" aria-label="Pantalla completa">⤢</button>
+  </header>
+
+  <!-- Alrededores: lugares cercanos al lote, en el mapa y en una lista por categoría -->
+  <aside id="nearby-panel" class="nearby-panel glass" hidden>
+    <div class="nearby-head">
+      <div>
+        <p class="eyebrow dark">Alrededores</p>
+        <h2>Todo cerca de casa</h2>
+      </div>
+      <button class="close" data-close-nearby aria-label="Volver a la implantación">×</button>
+    </div>
+    <div id="nearby-cats" class="nearby-cats"></div>
+    <ul id="nearby-list" class="nearby-list"></ul>
+    <p class="nearby-note">Distancias en línea recta desde el lote · Datos © OpenStreetMap</p>
+  </aside>
+
+  <!-- Implantación a pantalla completa: al terminar la intro se sale del mapa y queda la imagen sola -->
+  <div id="plan-view" class="plan-view" hidden>
+    <div class="plan-stage">
+      <img id="plan-img" alt="Implantación del conjunto" />
+      <!-- Un botón por departamento, pintado según su estado en la planta elegida -->
+      <div id="unit-spots"></div>
+      <button id="pool-hotspot" class="pool-hotspot" aria-label="Pileta: ver amenities"></button>
+    </div>
+    <div class="floor-switch glass">
+      <div id="floor-switch" class="floor-switch-options"></div>
+      <span id="floor-count" class="floor-switch-count"></span>
+      <span class="floor-switch-legend" aria-hidden="true">
+        <span><i class="st-disponible"></i>Disponible</span>
+        <span><i class="st-reservada"></i>Reservada</span>
+        <span><i class="st-vendida"></i>Vendida</span>
+      </span>
+    </div>
+    <span class="plan-swipe-hint glass">Deslizá para ver todo el conjunto ↔</span>
+  </div>
+
+  <!-- Departamento o pileta: al tocarlo en la implantación, la imagen se acerca y se abre a pantalla completa.
+       La pileta pasa primero su video y después queda la imagen. -->
+  <div id="unit-view" class="unit-view" hidden>
+    <img id="unit-view-img" class="unit-view-media" alt="" />
+    <video id="unit-view-video" class="unit-view-media" playsinline preload="none" hidden></video>
+    <!-- Plano de la tipología (si tiene): cada ambiente se toca y abre su render -->
+    <div id="unit-plan" class="unit-plan-wrap" hidden>
+      <div class="unit-plan-stage">
+        <img id="unit-plan-img" alt="" />
+        <div id="unit-rooms"></div>
+      </div>
+      <span class="unit-plan-tip glass">Tocá un ambiente para verlo</span>
+    </div>
+    <div class="unit-view-bar">
+      <div class="unit-view-title glass"><strong id="unit-view-name"></strong><em id="unit-view-status" class="badge"></em></div>
+      <div class="unit-view-actions">
+        <button id="unit-view-renders" class="glass search-btn">Ver unidad</button>
+        <button id="unit-view-tour" class="glass search-btn">Recorrido 360°</button>
+        <a id="unit-view-wa" class="search-btn wa-btn" target="_blank" rel="noopener">Consultar por WhatsApp</a>
+        <button id="unit-view-skip" class="glass search-btn" hidden>Saltar video</button>
+      </div>
+      <button id="unit-view-close" class="glass icon-btn" aria-label="Volver al edificio">×</button>
+    </div>
+  </div>
+
+  <aside id="floor-rail" class="floor-rail glass" hidden>
+    <p class="rail-title">Pisos</p>
+    <div id="floor-list"></div>
+  </aside>
+
+  <div id="hint" class="hint glass" hidden>Tocá un piso del edificio para ver sus departamentos</div>
+
+  <!-- Etiqueta al pasar sobre un departamento en la vista desde arriba -->
+  <div id="unit-tip" class="unit-tip glass" hidden></div>
+
+  <!-- Panel de un piso -->
+  <aside id="floor-panel" class="side-panel glass" hidden>
+    <button class="close" data-close-panel aria-label="Cerrar">×</button>
+    <p class="eyebrow dark">Torre Parrot</p>
+    <h2 id="floor-title"></h2>
+    <button id="floor-tour" class="btn floor-tour-btn">Ver recorrido 360°</button>
+    <div id="floor-plan" class="floor-plan"></div>
+    <div class="legend">
+      <span><i class="st-disponible"></i>Disponible</span>
+      <span><i class="st-reservada"></i>Reservada</span>
+      <span><i class="st-vendida"></i>Vendida</span>
+    </div>
+    <div id="floor-units" class="unit-list"></div>
+  </aside>
+
+  <!-- Buscador de unidades -->
+  <div id="search-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-search></div>
+    <div class="modal-card search-card">
+      <div class="modal-head">
+        <h2>Buscar Unidades</h2>
+        <button class="close" data-close-search aria-label="Cerrar">×</button>
+      </div>
+      <div class="filters">
+        <div id="rooms-filter" class="chips"></div>
+        <label class="range">
+          <span>Superficie mínima: <strong id="area-value"></strong></span>
+          <input id="area-filter" type="range" />
+        </label>
+        <label class="toggle"><input id="available-filter" type="checkbox" checked /> Solo unidades disponibles</label>
+      </div>
+      <p id="results-count" class="results-count"></p>
+      <div id="results" class="results"></div>
+    </div>
+  </div>
+
+  <!-- Ficha de unidad -->
+  <div id="unit-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-unit></div>
+    <div class="modal-card unit-card">
+      <button class="close" data-close-unit aria-label="Cerrar">×</button>
+      <div id="unit-plan" class="unit-plan"></div>
+      <div class="unit-body">
+        <span id="unit-status" class="badge"></span>
+        <h2 id="unit-title"></h2>
+        <dl id="unit-meta" class="meta"></dl>
+        <div class="unit-actions">
+          <a id="unit-wa" class="btn" target="_blank" rel="noopener">Consultar por WhatsApp</a>
+          <button id="unit-tour" class="btn btn-ghost">Recorrido 360°</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recorridos 360° -->
+  <div id="tour-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-tour></div>
+    <div class="modal-card tour-card">
+      <div class="modal-head">
+        <h2>Recorrido 360°</h2>
+        <button class="close" data-close-tour aria-label="Cerrar">×</button>
+      </div>
+      <div id="tour-tabs" class="chips"></div>
+      <div class="tour-frame">
+        <iframe id="tour-frame" title="Recorrido 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer" allowfullscreen></iframe>
+      </div>
+      <a id="tour-link" class="tour-link" target="_blank" rel="noopener">Abrir en pantalla completa ↗</a>
+    </div>
+  </div>
+
+  <!-- Imágenes: amenities y vista exterior (se mueven en profundidad con el puntero) -->
+  <div id="gallery-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-gallery></div>
+    <div class="modal-card gallery-card">
+      <div class="modal-head">
+        <h2 id="gallery-title"></h2>
+        <button class="close" data-close-gallery aria-label="Cerrar">×</button>
+      </div>
+      <div id="gallery-groups" class="chips" hidden></div>
+      <div id="gallery-tabs" class="chips"></div>
+      <div id="gallery-frame" class="gallery-frame">
+        <!-- Capa que se mueve con el puntero (zoom + profundidad) y que funde al cambiar de vista -->
+        <div id="gallery-media" class="gallery-media out">
+          <img id="gallery-img" alt="" />
+          <video id="gallery-video" class="gallery-video" muted playsinline preload="auto" hidden></video>
+        </div>
+        <button id="gallery-replay" class="gallery-replay glass" hidden>↻ Ver de nuevo</button>
+        <div id="gallery-stages" class="gallery-stages" hidden></div>
+        <button id="gallery-prev" class="gallery-nav prev glass" aria-label="Imagen anterior">‹</button>
+        <button id="gallery-next" class="gallery-nav next glass" aria-label="Imagen siguiente">›</button>
+        <span id="gallery-count" class="gallery-count"></span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

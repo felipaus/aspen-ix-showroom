@@ -260,6 +260,12 @@ a { color: inherit; text-decoration: none; }
   color: #fff; text-align: center; animation: appear .5s ease-out;
 }
 .gallery-stages[hidden] { display: none; }
+/* Estilo nuevo fundiéndose encima del anterior (misma toma). */
+.gallery-media .style-fade {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1;
+  opacity: 0; transition: opacity .85s ease;
+}
+.gallery-media .style-fade.in { opacity: 1; }
 .stages-caption { display: block; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; opacity: .8; margin-bottom: 10px; }
 .stages-line { position: relative; display: flex; justify-content: space-between; }
 .stages-line::before {
@@ -433,6 +439,88 @@ a { color: inherit; text-decoration: none; }
   padding: 8px 16px; border-radius: 999px; font-size: .85rem; white-space: nowrap;
 }
 
+/* Ficha técnica del prototipo: banner a la derecha del plano. Con la ficha abierta, el plano se corre a la izquierda. */
+.unit-sheet {
+  position: absolute; top: 112px; right: 16px; width: 300px; max-height: calc(100% - 180px); overflow-y: auto;
+  padding: 22px 22px 18px; border-radius: 16px; animation: appear .4s ease-out;
+}
+.unit-sheet .close { position: absolute; top: 10px; right: 10px; }
+.unit-sheet h3 { font-family: var(--serif); font-size: 1.6rem; line-height: 1.1; margin: 4px 0 16px; }
+.unit-sheet-areas { display: grid; gap: 8px; margin: 0 0 18px; }
+.unit-sheet-areas div { display: flex; align-items: baseline; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(127, 127, 127, .25); }
+.unit-sheet-areas dt { font-weight: 600; font-size: 1.15rem; }
+.unit-sheet-areas dd { margin: 0; opacity: .7; }
+.unit-sheet-rooms { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.unit-sheet-rooms li { padding-left: 16px; position: relative; }
+.unit-sheet-rooms li::before { content: ""; position: absolute; left: 0; top: .55em; width: 6px; height: 6px; border-radius: 50%; background: #f3c76a; }
+.unit-view.sheet-open .unit-plan-wrap { right: 332px; }
+#unit-view-sheet[aria-expanded="true"] { box-shadow: inset 0 0 0 2px #f3c76a; }
+
+/* 360° a pantalla completa dentro del departamento, con el menú lateral a la derecha y FT abajo a la izquierda. */
+.unit-tour-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #0f1412; }
+.unit-menu {
+  position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 10px; z-index: 45; /* encima de la galería (modal: 40) */
+}
+.unit-menu button { justify-content: flex-start; min-width: 170px; }
+.unit-menu button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px #f3c76a; }
+/* Galería abierta desde el departamento: deja libre la columna del menú. */
+.modal.fullscreen.with-menu { padding-right: 202px; }
+.modal.fullscreen.with-menu .modal-card { width: 100%; }
+.modal.fullscreen.with-menu .modal-backdrop { background: #0f1412; }
+.unit-ft-btn {
+  position: absolute; left: 16px; bottom: 16px; z-index: 2;
+  padding: 12px 18px; border-radius: 12px; font: 600 .95rem var(--sans, inherit); cursor: pointer;
+}
+.unit-ft-btn[aria-expanded="true"] { box-shadow: inset 0 0 0 2px #f3c76a; }
+.unit-view .unit-plan-wrap { right: 210px; z-index: 1; }
+.unit-view .unit-sheet { right: auto; left: 16px; top: auto; bottom: 76px; z-index: 3; }
+.unit-view.sheet-open .unit-plan-wrap { right: 210px; left: 332px; }
+.unit-view-bar { z-index: 2; }
+/* Con el 360° abierto, FT y la ficha quedan por encima de la barra de controles del recorrido. */
+.unit-view.tour-on .unit-ft-btn { bottom: 64px; }
+.unit-view.tour-on .unit-sheet { bottom: 124px; }
+
+/* Maqueta: plano 3D flotando sobre la implantación oscurecida, con los datos de la unidad al costado. */
+.maqueta {
+  position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center; gap: 28px;
+  padding: 80px 40px 90px; background: rgba(10, 14, 12, .55); backdrop-filter: blur(3px);
+  opacity: 0; transition: opacity .45s ease;
+}
+.maqueta.visible { opacity: 1; }
+.maqueta[hidden] { display: none; }
+.maqueta-stage {
+  flex: 0 1 auto; width: min(62vw, calc((100vh - 170px) * 1.25)); aspect-ratio: 1.25; padding: 0; border: 0;
+  background: none; cursor: pointer; perspective: 1400px;
+}
+.maqueta-fly {
+  display: block; width: 100%; height: 100%;
+  transform: translate(var(--from-x, 0), var(--from-y, 0)) scale(.08); opacity: 0;
+  transition: transform .65s cubic-bezier(.2, .8, .2, 1), opacity .35s ease;
+}
+.maqueta.visible .maqueta-fly { transform: none; opacity: 1; }
+.maqueta-tilt { display: block; width: 100%; height: 100%; transition: transform .5s ease-out; transform-style: preserve-3d; }
+.maqueta-tilt img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+  filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .45)); animation: maqueta-float 5s ease-in-out infinite;
+  transition: filter .3s ease;
+}
+.maqueta-stage:hover .maqueta-tilt img, .maqueta-stage:focus-visible .maqueta-tilt img { filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .45)) drop-shadow(0 0 18px rgba(243, 199, 106, .45)); }
+@keyframes maqueta-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+.maqueta-info {
+  flex: none; width: 260px; padding: 18px 20px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px;
+  transform: translateX(20px); opacity: 0; transition: transform .5s ease .25s, opacity .5s ease .25s;
+}
+.maqueta.visible .maqueta-info { transform: none; opacity: 1; }
+.maqueta-type { font-family: var(--serif); font-size: 1.5rem; line-height: 1.1; }
+.maqueta-hint { margin-top: 8px; font-size: .8rem; opacity: .6; }
+.maqueta-close { position: absolute; top: 16px; right: 16px; z-index: 2; }
+
+/* Números del conjunto en la pantalla de inicio. */
+.intro-stats { list-style: none; padding: 0; margin: 18px 0 0; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px 28px; }
+.intro-stats li { display: flex; flex-direction: column; align-items: center; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+.intro-stats strong { font-family: var(--serif); font-size: 1.6rem; letter-spacing: 0; text-transform: none; }
+
 /* Consulta por WhatsApp desde el departamento. */
 .wa-btn { background: #25d366; color: #0b3d22; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
 .wa-btn:hover { background: #2fe072; }
@@ -447,6 +535,20 @@ a { color: inherit; text-decoration: none; }
   .unit-view-actions > * { flex: 1 1 auto; justify-content: center; text-align: center; padding: 9px 10px; font-size: .85rem; }
   .unit-plan-wrap { inset: 128px 10px 60px; }
   .unit-plan-stage { width: min(100%, calc((100vh - 188px) * var(--plan-ratio))); }
+  .unit-sheet { top: auto; left: 10px; right: 10px; bottom: 10px; width: auto; max-height: 60vh; }
+  .unit-view.sheet-open .unit-plan-wrap { right: 10px; }
+  .intro-stats strong { font-size: 1.3rem; }
+  .maqueta { flex-direction: column; gap: 14px; padding: 64px 14px 20px; }
+  .maqueta-stage { width: min(100%, calc((100vh - 330px) * 1.25)); }
+  .maqueta-info { width: 100%; max-width: 420px; transform: translateY(16px); }
+  .unit-menu { top: auto; bottom: 64px; left: 10px; right: 10px; transform: none; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .unit-menu button { min-width: 0; flex: 1 1 auto; justify-content: center; padding: 9px 10px; font-size: .85rem; }
+  .unit-ft-btn { left: 10px; bottom: 10px; padding: 9px 14px; font-size: .85rem; }
+  .unit-view .unit-plan-wrap, .unit-view.sheet-open .unit-plan-wrap { left: 10px; right: 10px; bottom: 150px; }
+  .unit-view .unit-sheet { left: 10px; right: 10px; bottom: 56px; }
+  .unit-menu { bottom: 110px; }
+  .modal.fullscreen.with-menu { padding: 0 0 150px; }
+  .unit-view.tour-on .unit-sheet { bottom: 110px; }
 }
 
 /* Flechas y contador del visor. */

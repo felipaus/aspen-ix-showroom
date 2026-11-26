@@ -81,6 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("project-tagline").textContent = PROJECT.tagline;
   $("intro-name").textContent = PROJECT.name;
   $("intro-tagline").textContent = PROJECT.tagline;
+  $("intro-stats").innerHTML = (PROJECT.stats ?? []).map(({ value, label }) => `<li><strong>${value}</strong>${label}</li>`).join("");
   if (PROJECT.cover) $("intro").style.setProperty("--intro-bg", `url("${PROJECT.cover}")`);
   initMap();
   initUi();
@@ -778,6 +779,7 @@ function finishIntro() {
     // Terminada la intro se sale del mapa: la implantación queda sola, a pantalla completa.
     $("topbar").hidden = false;
     $("facade-btn").hidden = !sitePlan.facade;
+    $("techplan-btn").hidden = !sitePlan.technicalPlan;
     $("nearby-btn").hidden = false;
     $("search-btn").hidden = true;
     $("tour-btn").hidden = true;
@@ -1055,7 +1057,8 @@ function closeTour() {
 function closeGallery() {
   galleryToken++; // descarta las esperas pendientes de la vista abierta
   $("gallery-modal").hidden = true;
-  $("gallery-modal").classList.remove("fullscreen");
+  $("gallery-modal").classList.remove("fullscreen", "with-menu");
+  if (unitViewOpen && !$("unit-menu").hidden) setUnitMenuActive(unitMode === "media" ? "" : unitMode);
   $("gallery-media").classList.add("out"); // al volver a abrir aparece fundida desde negro
   stopGalleryVideo();
 }
@@ -1090,6 +1093,15 @@ function initPlanView() {
     openTour(sitePlan.units.find((u) => u.id === openUnitId).typology);
     $("tour-modal").classList.add("fullscreen");
   });
+  initMaqueta();
+  $("unit-view-sheet").addEventListener("click", () => setUnitSheet($("unit-sheet").hidden));
+  const openGroup = () => rendersIndexFor(sitePlan.units.find((u) => u.id === openUnitId));
+  $("unit-menu-gallery").addEventListener("click", () => openUnitGallery("gallery", () => openRenders(openGroup())));
+  $("unit-menu-timeline").addEventListener("click", () => openUnitGallery("timeline", () => openTimeline(openGroup())));
+  $("unit-menu-styles").addEventListener("click", () => openUnitGallery("styles", () => openStyles(openGroup())));
+  $("unit-menu-plan").addEventListener("click", () => { closeGallery(); setUnitMode("plan"); });
+  $("unit-menu-tour").addEventListener("click", () => { closeGallery(); setUnitMode("tour"); });
+  $("unit-sheet-close").addEventListener("click", () => setUnitSheet(false));
   $("unit-view-video").addEventListener("ended", showPoolImage);
   unitParallax = createParallax($("unit-view"), () => [$("unit-view-img"), $("unit-view-video")]);
   resetParallax(unitParallax);
@@ -1118,7 +1130,9 @@ function initUnitSpots() {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       hideUnitSpotTip();
-      openUnitView(el.dataset.unit);
+      // Con plano 3D: primero la maqueta (y desde ahí se entra); si no, directo al departamento.
+      if (modelFor(el.dataset.unit)) openMaqueta(el.dataset.unit, el);
+      else openUnitView(el.dataset.unit);
     });
     // Con mouse: tarjeta con las características del departamento, junto a su punto.
     el.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && showUnitSpotTip(el.dataset.unit, el));
@@ -1152,6 +1166,77 @@ function unitLabel(unit) {
 
 // Tarjeta del departamento: número, estado, tipología, planta y características (SITE_PLAN.typologyInfo). Se apoya
 // sobre el punto, o debajo si no entra arriba, y nunca se sale de la pantalla por los costados.
+// ---------- Maqueta (plano 3D) ----------
+let maquetaUnit = null;
+const MAQUETA_MS = 650;
+
+function modelFor(unitId) {
+  const unit = sitePlan.units.find((u) => u.id === unitId);
+  return sitePlan.typologyInfo?.[unit?.typology]?.model3d;
+}
+
+// El plano 3D sale desde el puntito del departamento, crece hasta el centro y queda flotando; con el mouse se
+// inclina un poco, como una maqueta que se mira desde distintos lados.
+function openMaqueta(unitId, spot) {
+  if (unitViewOpen) return;
+  const unit = sitePlan.units.find((u) => u.id === unitId);
+  const status = unitStatus(unitId);
+  const info = sitePlan.typologyInfo?.[unit.typology] ?? {};
+  const area = unit.area ?? info.area;
+  const typology = TOURS_360.find((t) => t.id === unit.typology)?.label ?? unit.typology;
+  const floor = sitePlan.floors.find((f) => f.id === currentPlanFloor)?.label ?? "";
+  maquetaUnit = unitId;
+  $("unit-spots").querySelectorAll(".unit-spot.active").forEach((el) => el.classList.remove("active"));
+  spot.classList.add("active");
+  $("maqueta-img").src = info.model3d;
+  $("maqueta-img").alt = `Plano 3D · ${typology}`;
+  $("maqueta-id").textContent = `Unidad ${unit.id}`;
+  $("maqueta-status").className = `badge ${status}`;
+  $("maqueta-status").textContent = STATUS_LABELS[status];
+  $("maqueta-type").textContent = typology;
+  $("maqueta-meta").textContent = [info.prototype, floor, area ? `${String(area).replace(".", ",")} m² cubiertos` : ""].filter(Boolean).join(" · ");
+  const view = $("maqueta");
+  // Desde dónde vuela: el centro del puntito respecto del centro de la pantalla.
+  const dot = spot.querySelector(".unit-dot").getBoundingClientRect();
+  view.style.setProperty("--from-x", `${dot.left + dot.width / 2 - innerWidth / 2}px`);
+  view.style.setProperty("--from-y", `${dot.top + dot.height / 2 - innerHeight / 2}px`);
+  $("maqueta-tilt").style.transform = "";
+  view.hidden = false;
+  void view.offsetWidth;
+  view.classList.add("visible");
+}
+
+function closeMaqueta(keepActive = false) {
+  const view = $("maqueta");
+  if (view.hidden) return;
+  view.classList.remove("visible");
+  if (!keepActive) $("unit-spots").querySelectorAll(".unit-spot.active").forEach((el) => el.classList.remove("active"));
+  maquetaUnit = null;
+  setTimeout(() => !view.classList.contains("visible") && (view.hidden = true), MAQUETA_MS);
+}
+
+function enterFromMaqueta() {
+  const id = maquetaUnit;
+  if (!id) return;
+  closeMaqueta(true);
+  openUnitView(id);
+}
+
+function initMaqueta() {
+  const view = $("maqueta");
+  $("maqueta-enter").addEventListener("click", enterFromMaqueta);
+  $("maqueta-close").addEventListener("click", () => closeMaqueta());
+  view.addEventListener("click", (e) => e.target === view && closeMaqueta());
+  document.addEventListener("keydown", (e) => e.key === "Escape" && !view.hidden && closeMaqueta());
+  view.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    const nx = e.clientX / innerWidth - 0.5;
+    const ny = e.clientY / innerHeight - 0.5;
+    $("maqueta-tilt").style.transform = `rotateX(${(-ny * 10).toFixed(2)}deg) rotateY(${(nx * 14).toFixed(2)}deg)`;
+  });
+  view.addEventListener("pointerleave", () => ($("maqueta-tilt").style.transform = ""));
+}
+
 function showUnitSpotTip(unitId, spot) {
   const card = $("unit-card");
   const unit = sitePlan.units.find((u) => u.id === unitId);
@@ -1168,7 +1253,7 @@ function showUnitSpotTip(unitId, spot) {
     <span class="uc-floor">${floor}</span>
     ${feats.length ? `<ul class="uc-feats">${feats.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
     ${unit.price && status !== "vendida" ? `<span class="uc-price">${unit.price}</span>` : ""}
-    <span class="uc-cta">${status === "vendida" ? "Ver planos y renders" : "Tocá para ver la unidad"} →</span>`;
+    <span class="uc-cta">${status === "vendida" ? "Tocá para ver la maqueta y los renders" : "Tocá para ver la maqueta"} →</span>`;
   card.hidden = false;
   const dot = spot.querySelector(".unit-dot").getBoundingClientRect();
   const cx = dot.left + dot.width / 2;
@@ -1241,16 +1326,27 @@ function openUnitView(unitId) {
   const group = rendersIndexFor(unit);
   const { plan, images } = sitePlan.renders[group];
   $("unit-spots").querySelector(`[data-unit="${unitId}"]`).classList.add("active");
-  // Con plano, eso es lo primero que se ve (y cada ambiente abre su render); si no, el primer render.
+  // Lo primero que se ve es el 360° de la tipología, con el menú al costado (galería, línea de tiempo, plano).
+  // Sin 360°, el plano (cada ambiente abre su render); sin plano, el primer render.
   if (plan) showUnitPlan(plan, group);
   else showUnitViewImage(images[0].image, unitLabel(unit));
+  unitTour = tour ?? null;
+  $("unit-menu").hidden = false;
+  $("unit-menu-tour").hidden = !tour;
+  $("unit-menu-plan").hidden = !plan;
+  $("unit-menu-timeline").hidden = timelineIndex(group) < 0;
+  $("unit-menu-styles").hidden = stylesIndex(group) < 0;
+  setUnitMode(tour ? "tour" : "plan");
   $("unit-view-name").textContent = unitLabel(unit);
   $("unit-view-status").hidden = false;
   $("unit-view-status").className = `badge ${status}`;
   $("unit-view-status").textContent = STATUS_LABELS[status];
-  $("unit-view-renders").hidden = false;
-  $("unit-view-tour").hidden = !tour;
+  $("unit-view-renders").hidden = true;
+  $("unit-view-tour").hidden = true;
   $("unit-view-skip").hidden = true;
+  const hasSheet = fillUnitSheet(unit);
+  $("unit-view-sheet").hidden = !hasSheet;
+  setUnitSheet(false); // se abre con el botón "Ficha técnica" (abajo a la izquierda)
   const msg = `Hola! Me interesa el ${unitLabel(unit).replace(" · ", " ")} de ${PROJECT.name}.`;
   $("unit-view-wa").href = `https://wa.me/${PROJECT.whatsapp}?text=${encodeURIComponent(msg)}`;
   $("unit-view-wa").hidden = !PROJECT.whatsapp;
@@ -1267,6 +1363,11 @@ function openPoolView(e) {
   $("unit-view-renders").hidden = true;
   $("unit-view-tour").hidden = true;
   $("unit-view-wa").hidden = true;
+  $("unit-view-sheet").hidden = true;
+  setUnitSheet(false);
+  $("unit-menu").hidden = true;
+  unitTour = null;
+  setUnitMode("media");
   $("unit-plan").hidden = true;
   resetParallax(unitParallax);
   if (!video) return showUnitViewImage(image, label);
@@ -1322,11 +1423,9 @@ function showUnitPlan(plan, group) {
     .join("");
   $("unit-rooms").querySelectorAll("[data-room]").forEach((el) =>
     el.addEventListener("click", () => {
-      openRenders(group, plan.rooms[+el.dataset.room].view);
-      $("gallery-modal").classList.add("fullscreen");
+      openUnitGallery("gallery", () => openRenders(group, plan.rooms[+el.dataset.room].view));
     })
   );
-  $("unit-plan").hidden = false;
 }
 
 function showUnitViewImage(image, alt) {
@@ -1348,10 +1447,83 @@ function stopPoolVideo() {
 }
 
 // Cerrar: se va la vista y la implantación vuelve a alejarse a la vista del edificio.
+// Ficha técnica del prototipo (SITE_PLAN.typologyInfo): m² y ambientes. Devuelve false si la tipología no tiene datos.
+function fillUnitSheet(unit) {
+  const info = sitePlan.typologyInfo?.[unit.typology];
+  if (!info?.rooms?.length) return false;
+  $("unit-sheet-proto").textContent = info.prototype ?? "Ficha técnica";
+  $("unit-sheet-title").textContent = TOURS_360.find((t) => t.id === unit.typology)?.label ?? unit.typology;
+  $("unit-sheet-areas").innerHTML = (info.areas ?? []).map(([v, l]) => `<div><dt>${v}</dt><dd>${l}</dd></div>`).join("");
+  $("unit-sheet-areas").hidden = !info.areas?.length;
+  $("unit-sheet-rooms").innerHTML = info.rooms.map((r) => `<li>${r}</li>`).join("");
+  return true;
+}
+
+let unitTour = null;
+
+// Qué se ve en la vista del departamento: "tour" (360° a pantalla completa), "plan" (plano con ambientes) o "media"
+// (imagen/video, la pileta). El 360° se carga recién al mostrarlo y se descarga al salir.
+function setUnitMode(mode) {
+  const frame = $("unit-tour-frame");
+  const tour = mode === "tour" && unitTour;
+  if (tour && frame.src !== unitTour.url) frame.src = unitTour.url;
+  frame.hidden = !tour;
+  $("unit-plan").hidden = mode !== "plan";
+  $("unit-view").classList.toggle("tour-on", !!tour);
+  unitMode = mode;
+  setUnitMenuActive(tour ? "tour" : mode);
+}
+
+let unitMode = "media";
+
+// Marca en el menú lo que se está viendo: gallery, timeline, styles, plan o tour.
+function setUnitMenuActive(name) {
+  ["gallery", "timeline", "styles", "plan", "tour"].forEach((n) =>
+    $(`unit-menu-${n}`).setAttribute("aria-pressed", String(n === name))
+  );
+}
+
+// Galería, línea de tiempo o estilos abiertos desde el departamento: a pantalla completa, dejando el menú a la vista.
+function openUnitGallery(name, open) {
+  open();
+  $("gallery-modal").classList.add("fullscreen", "with-menu");
+  setUnitMenuActive(name);
+}
+
+// Línea de tiempo: solo la vista con etapas (Niñez / Juventud / Adultez), sin las demás pestañas.
+function openTimeline(group) {
+  const item = sitePlan.renders[group].images.find((it) => it.stages);
+  $("gallery-groups").hidden = true;
+  openGallery(`Línea de tiempo · ${item.label}`, [{ ...item, fit: "contain" }]);
+}
+
+// Estilos: solo las vistas que tienen distintas terminaciones para elegir.
+function openStyles(group) {
+  const items = sitePlan.renders[group].images.filter((it) => it.styles);
+  $("gallery-groups").hidden = true;
+  openGallery(`Estilos · ${sitePlan.renders[group].typology}`, items.map((it) => ({ ...it, fit: "contain" })));
+}
+
+function stylesIndex(group) {
+  return sitePlan.renders[group]?.images.findIndex((it) => it.styles) ?? -1;
+}
+
+// Posición de la vista con línea de tiempo (Niñez / Juventud / Adultez) en los renders de la tipología, o -1.
+function timelineIndex(group) {
+  return sitePlan.renders[group]?.images.findIndex((it) => it.stages) ?? -1;
+}
+
+function setUnitSheet(open) {
+  $("unit-sheet").hidden = !open;
+  $("unit-view").classList.toggle("sheet-open", open);
+  $("unit-view-sheet").setAttribute("aria-expanded", String(open));
+}
+
 function closeUnitView() {
   if (!unitViewOpen) return;
   const view = $("unit-view");
   view.classList.remove("visible");
+  $("unit-menu").hidden = true;
   $("unit-view-video").pause();
   setTimeout(() => {
     view.hidden = true;
@@ -1360,6 +1532,9 @@ function closeUnitView() {
     $("unit-spots").querySelectorAll(".unit-spot.active").forEach((el) => el.classList.remove("active"));
     openUnitId = null;
     unitViewOpen = false;
+    unitTour = null;
+    $("unit-tour-frame").removeAttribute("src");
+    setUnitMode("media");
   }, UNIT_FADE_MS);
 }
 
@@ -1420,6 +1595,12 @@ function openAmenities() {
   openGallery(sitePlan.amenities.label, [{ label: sitePlan.amenities.label, image: sitePlan.amenities.image }]);
 }
 
+function openTechnicalPlan() {
+  $("gallery-groups").hidden = true;
+  $("gallery-modal").classList.add("fullscreen");
+  openGallery("Plano técnico", [{ label: "Plano técnico", image: sitePlan.technicalPlan, fit: "contain" }]);
+}
+
 function openFacade() {
   $("gallery-groups").hidden = true;
   $("gallery-modal").classList.add("fullscreen"); // a pantalla completa, como los renders del departamento
@@ -1431,7 +1612,12 @@ function openFacade() {
 function openRenders(group = 0, view = 0) {
   const { typology, images } = sitePlan.renders[group];
   $("gallery-groups").hidden = true;
-  openGallery(`Render · ${typology}`, images.map((it) => ({ ...it, fit: "contain" })), view);
+  // En la galería cada ambiente se ve con su imagen común: los estilos y la línea de tiempo tienen su propio botón.
+  const plain = (it) =>
+    it.styles ? { label: it.label, image: it.styles[0].image }
+    : it.stages ? { label: it.label, image: it.image ?? it.stages[0].end }
+    : it;
+  openGallery(`Galería · ${typology}`, images.map((it) => ({ ...plain(it), fit: "contain" })), view);
 }
 
 // `items`: [{ label, image, focus?, fit?, video?, start?, end? } o { label, caption?, stages: [...] }]. Con más de una
@@ -1475,6 +1661,7 @@ const GALLERY_FADE_MS = 450; // .gallery-media
 
 // La vista que se muestra: la misma, o la etapa elegida si tiene línea de tiempo.
 function galleryShown(item, stage) {
+  if (item.styles) return { ...item.styles[stage], label: `${item.label} · ${item.styles[stage].label}` };
   if (!item.stages) return item;
   const s = item.stages[stage];
   return { ...s, label: `${item.label} · ${s.label}`, stage: true };
@@ -1484,23 +1671,55 @@ function galleryShown(item, stage) {
 // otra vez, reinicia su video desde el principio.
 function renderGalleryStages(item, active) {
   const box = $("gallery-stages");
-  box.hidden = !item.stages;
-  if (!item.stages) return (box.innerHTML = "");
+  const options = item.stages ?? item.styles;
+  box.hidden = !options;
+  box.classList.toggle("styles", !!item.styles);
+  if (!options) return (box.innerHTML = "");
   box.innerHTML =
     (item.caption ? `<span class="stages-caption">${item.caption}</span>` : "") +
-    `<div class="stages-line">${item.stages
+    `<div class="stages-line">${options
       .map((s, i) => `<button class="stage${i === active ? " active" : ""}" data-stage="${i}"><i></i><span>${s.label}</span></button>`)
       .join("")}</div>`;
   box.querySelectorAll("[data-stage]").forEach((el) =>
     el.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (item.styles) return switchGalleryStyle(item, +el.dataset.stage);
       openGallery(gallery.title, gallery.items, gallery.index, +el.dataset.stage);
     })
   );
 }
 
 // Lo que se ve quieto de una vista: la imagen, o el primer cuadro del video (o el último si ya se vio).
+// Cambio de estilo: la toma es la misma, así que el estilo nuevo se funde directo encima del anterior (sin pasar por negro).
+function switchGalleryStyle(item, i) {
+  if (gallery.stage === i) return;
+  gallery.stage = i;
+  $("gallery-stages").querySelectorAll("[data-stage]").forEach((el) => el.classList.toggle("active", +el.dataset.stage === i));
+  const token = ++galleryToken;
+  const img = $("gallery-img");
+  const next = new Image();
+  next.className = "style-fade";
+  next.style.objectFit = img.style.objectFit;
+  next.alt = `${gallery.title} · ${item.label} · ${item.styles[i].label}`;
+  next.src = item.styles[i].image;
+  const done = () => {
+    if (token !== galleryToken) return next.remove();
+    img.parentNode.appendChild(next);
+    requestAnimationFrame(() => next.classList.add("in"));
+    setTimeout(() => {
+      if (token === galleryToken) {
+        img.src = next.src;
+        img.alt = next.alt;
+        $("gallery-media").style.setProperty("--gallery-bg", `url("${next.src}")`);
+      }
+      next.remove();
+    }, 900);
+  };
+  next.decode().then(done, done);
+}
+
 function galleryStill(item) {
+  if (item.styles) item = item.styles[0];
   if (item.stages) item = item.stages[0];
   if (!item.video) return item.image;
   return galleryWatched.has(item.video) ? item.end || item.image : item.start || item.image;
@@ -1848,6 +2067,7 @@ function initUi() {
   $("floor-tour").addEventListener("click", () => openTour());
   document.querySelectorAll("[data-close-tour]").forEach((el) => el.addEventListener("click", closeTour));
   $("facade-btn").addEventListener("click", openFacade);
+  $("techplan-btn").addEventListener("click", openTechnicalPlan);
   $("nearby-btn").addEventListener("click", openNearby);
   document.querySelectorAll("[data-close-nearby]").forEach((el) => el.addEventListener("click", closeNearby));
   document.querySelectorAll("[data-close-gallery]").forEach((el) => el.addEventListener("click", closeGallery));

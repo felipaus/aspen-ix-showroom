@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Aspen IX · Showroom virtual | Parrot Diseño</title>
+  <title>Aspen IX · Showroom virtual | Pilar de Diseño</title>
   <meta name="description" content="Recorré Aspen IX: ubicación en San Juan, implantación, unidades disponibles, renders y recorridos 360°." />
   <!-- Vista previa al compartir el link (WhatsApp, redes) -->
   <meta property="og:title" content="Aspen IX · Showroom virtual" />
@@ -20,9 +20,9 @@
   <script src="vendor/maplibre-5.24.0/maplibre-gl.js" defer></script>
 
   <!-- ?v= obliga al navegador a bajar la versión nueva: subir el número cada vez que cambien estos archivos -->
-  <link rel="stylesheet" href="showroom.css?v=37" />
-  <script src="data.js?v=33" defer></script>
-  <script src="showroom.js?v=47" defer></script>
+  <link rel="stylesheet" href="showroom.css?v=43" />
+  <script src="data.js?v=38" defer></script>
+  <script src="showroom.js?v=53" defer></script>
 </head>
 <body>
   <div id="map"></div>
@@ -34,11 +34,12 @@
         <circle cx="60" cy="60" r="54" class="ring-bg" />
         <circle cx="60" cy="60" r="54" class="ring-fg" id="ring-fg" />
       </svg>
-      <div class="intro-mark">parrot<span>diseño</span></div>
+      <div class="intro-mark">pilar de <span>diseño</span></div>
     </div>
     <div class="intro-text">
       <h1 id="intro-name"></h1>
       <p id="intro-tagline"></p>
+      <ul id="intro-stats" class="intro-stats"></ul>
     </div>
     <p id="intro-progress" class="intro-progress">0%</p>
     <button id="enter-btn" class="enter-btn" hidden>Entrar</button>
@@ -59,13 +60,14 @@
 
   <!-- UI del showroom -->
   <header id="topbar" class="topbar" hidden>
-    <div class="brand">parrot<span>diseño</span></div>
+    <div class="brand">pilar de <span>diseño</span></div>
     <button id="search-btn" class="glass search-btn">
       <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       Buscar Unidades
     </button>
     <button id="tour-btn" class="glass search-btn">Recorrido 360°</button>
     <button id="facade-btn" class="glass search-btn" hidden>Vista exterior</button>
+    <button id="techplan-btn" class="glass search-btn" hidden>Plano técnico</button>
     <button id="nearby-btn" class="glass search-btn" hidden>Alrededores</button>
     <button id="view-toggle" class="glass search-btn" hidden>Ver en el mapa</button>
     <button id="fullscreen-btn" class="glass icon-btn" aria-label="Pantalla completa">⤢</button>
@@ -106,11 +108,27 @@
     <span class="plan-swipe-hint glass">Deslizá para ver todo el conjunto ↔</span>
   </div>
 
+  <!-- Maqueta: al tocar el puntito aparece el plano 3D de la tipología; tocándolo se entra al departamento -->
+  <div id="maqueta" class="maqueta" hidden>
+    <button id="maqueta-enter" class="maqueta-stage" aria-label="Entrar al departamento">
+      <span class="maqueta-fly"><span id="maqueta-tilt" class="maqueta-tilt"><img id="maqueta-img" alt="" /></span></span>
+    </button>
+    <div class="maqueta-info glass">
+      <div class="uc-head"><span id="maqueta-id" class="uc-id"></span><em id="maqueta-status" class="badge"></em></div>
+      <strong id="maqueta-type" class="maqueta-type"></strong>
+      <span id="maqueta-meta" class="uc-floor"></span>
+      <span class="maqueta-hint">Tocá la maqueta para entrar</span>
+    </div>
+    <button id="maqueta-close" class="glass icon-btn maqueta-close" aria-label="Volver a la implantación">×</button>
+  </div>
+
   <!-- Departamento o pileta: al tocarlo en la implantación, la imagen se acerca y se abre a pantalla completa.
        La pileta pasa primero su video y después queda la imagen. -->
   <div id="unit-view" class="unit-view" hidden>
     <img id="unit-view-img" class="unit-view-media" alt="" />
     <video id="unit-view-video" class="unit-view-media" playsinline preload="none" hidden></video>
+    <!-- Recorrido 360° de la tipología: es lo primero que se ve al entrar a un departamento -->
+    <iframe id="unit-tour-frame" class="unit-tour-frame" title="Recorrido 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer" allowfullscreen hidden></iframe>
     <!-- Plano de la tipología (si tiene): cada ambiente se toca y abre su render -->
     <div id="unit-plan" class="unit-plan-wrap" hidden>
       <div class="unit-plan-stage">
@@ -119,6 +137,16 @@
       </div>
       <span class="unit-plan-tip glass">Tocá un ambiente para verlo</span>
     </div>
+    <!-- Ficha técnica del prototipo: banner a la derecha del plano (m² y ambientes) -->
+    <aside id="unit-sheet" class="unit-sheet glass" hidden>
+      <button class="close" id="unit-sheet-close" aria-label="Cerrar ficha técnica">×</button>
+      <p id="unit-sheet-proto" class="eyebrow dark"></p>
+      <h3 id="unit-sheet-title"></h3>
+      <dl id="unit-sheet-areas" class="unit-sheet-areas"></dl>
+      <ul id="unit-sheet-rooms" class="unit-sheet-rooms"></ul>
+    </aside>
+    <!-- FT: ficha técnica del prototipo, abajo a la izquierda -->
+    <button id="unit-view-sheet" class="glass unit-ft-btn" aria-expanded="false" title="Ficha técnica">Ficha técnica</button>
     <div class="unit-view-bar">
       <div class="unit-view-title glass"><strong id="unit-view-name"></strong><em id="unit-view-status" class="badge"></em></div>
       <div class="unit-view-actions">
@@ -130,6 +158,15 @@
       <button id="unit-view-close" class="glass icon-btn" aria-label="Volver al edificio">×</button>
     </div>
   </div>
+
+  <!-- Menú del departamento: queda siempre a la vista (también con la galería abierta) -->
+  <nav id="unit-menu" class="unit-menu" hidden>
+    <button id="unit-menu-gallery" class="glass search-btn" aria-pressed="false">Galería</button>
+    <button id="unit-menu-timeline" class="glass search-btn" aria-pressed="false">Línea de tiempo</button>
+    <button id="unit-menu-styles" class="glass search-btn" aria-pressed="false">Estilos</button>
+    <button id="unit-menu-plan" class="glass search-btn" aria-pressed="false">Plano</button>
+    <button id="unit-menu-tour" class="glass search-btn" aria-pressed="true">Recorrido 360°</button>
+  </nav>
 
   <aside id="floor-rail" class="floor-rail glass" hidden>
     <p class="rail-title">Pisos</p>
@@ -146,7 +183,7 @@
   <!-- Panel de un piso -->
   <aside id="floor-panel" class="side-panel glass" hidden>
     <button class="close" data-close-panel aria-label="Cerrar">×</button>
-    <p class="eyebrow dark">Torre Parrot</p>
+    <p class="eyebrow dark">Aspen IX</p>
     <h2 id="floor-title"></h2>
     <button id="floor-tour" class="btn floor-tour-btn">Ver recorrido 360°</button>
     <div id="floor-plan" class="floor-plan"></div>

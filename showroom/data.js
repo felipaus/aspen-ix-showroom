@@ -2,7 +2,13 @@
 const PROJECT = {
   // Nombre tomado del cartel de la fachada en los renders.
   name: "Aspen IX",
-  tagline: "27 unidades · Duplex, 1 y 2 dormitorios · Calle Santo Domingo, San Juan",
+  tagline: "Dúplex, monoambientes, 1 y 2 dormitorios · Calle Santo Domingo, San Juan",
+  // Números del conjunto que se muestran en la pantalla de inicio (ficha de PDD).
+  stats: [
+    { value: "36", label: "unidades funcionales" },
+    { value: "2.574 m²", label: "totales" },
+    { value: "40,50 m²", label: "de amenities" },
+  ],
   // Imagen de fondo de la pantalla de inicio.
   cover: "img/fachada-noche.jpg",
   // Centro del lote (en Google Maps: clic derecho sobre el lugar y copiar las coordenadas).
@@ -55,11 +61,36 @@ const SITE_PLAN = {
   // Características que muestra la tarjeta al pasar el mouse por un departamento, por tipología (salen de los planos:
   // confirmarlas con el cliente). `area` en m² (null = no se muestra). Un departamento puede pisar `area` o `price`
   // con sus propios valores en `units`, por ejemplo { id: "D1", ..., area: 92, price: "USD 98.000" }.
+  // `model3d`: plano isométrico (PNG/WebP con fondo transparente) que aparece como maqueta al tocar el puntito.
+  // Características por tipología: `features` va en la tarjeta del puntito; `prototype`, `areas` y `rooms` arman la
+  // "Ficha técnica" que se abre a la derecha del plano (datos de las fichas de PDD). `area`: m² cubiertos.
+  // Plano técnico del edificio (numeración y prototipos). Botón "Plano técnico" en la barra de la implantación.
+  technicalPlan: "img/plano-tecnico.jpg",
   typologyInfo: {
-    duplex: { features: ["2 dormitorios", "2 baños", "Vestidor", "Dos plantas"], area: null },
-    monoambiente: { features: ["Ambiente integrado", "Dormitorio, cocina y comedor"], area: null },
-    "1-dormitorio": { features: ["1 dormitorio", "Cocina y comedor"], area: null },
-    "2-dormitorios": { features: ["2 dormitorios", "Vestidor", "Living", "Cocina y comedor"], area: null },
+    duplex: {
+      features: ["2 dormitorios", "2 baños", "Vestidor", "Cochera propia"], area: 88.57,
+      prototype: "Prototipo 1", model3d: "img/planos-3d/duplex.webp",
+      areas: [["88,57 m²", "cubiertos"], ["15,65 m²", "patio"], ["4,2 m²", "balcón"]],
+      rooms: ["Estar-comedor", "Cocina", "Dormitorio con vestidor", "Dormitorio", "2 baños", "Cochera propia"],
+    },
+    monoambiente: {
+      features: ["Ambiente integrado", "Dormitorio, cocina y comedor"], area: null,
+      prototype: "Prototipo 4", model3d: "img/planos-3d/monoambiente.webp",
+      areas: [],
+      rooms: ["Ambiente integrado", "Dormitorio, cocina y comedor", "Baño"],
+    },
+    "1-dormitorio": {
+      features: ["1 dormitorio", "Estar-comedor-cocina", "Patio"], area: 50.47,
+      prototype: "Prototipo 2", model3d: "img/planos-3d/1-dormitorio.webp",
+      areas: [["50,47 m²", "cubiertos"], ["4,20 m²", "patio"]],
+      rooms: ["Estar-comedor-cocina", "Baño", "Dormitorio"],
+    },
+    "2-dormitorios": {
+      features: ["2 dormitorios", "Vestidor", "Living", "Balcón"], area: 76.2,
+      prototype: "Prototipo 3", model3d: "img/planos-3d/2-dormitorios.webp",
+      areas: [["76,20 m²", "cubiertos"], ["26,87 m²", "balcón"]],
+      rooms: ["Living", "Cocina-comedor", "Dormitorio con vestidor", "Dormitorio", "Baño y antebaño"],
+    },
   },
   // Departamentos marcados sobre la implantación. `box`: [izquierda, arriba, derecha, abajo] en píxeles de la imagen
   // (imageSize). `typology` es el id del recorrido 360° (TOURS_360) y de los renders; si una tipología todavía no
@@ -201,11 +232,21 @@ const SITE_PLAN = {
       images: [
         { label: "Living", image: "img/renders/2-dormitorios/living.jpg", video: "video/2d-living.mp4", start: "img/cuadros/2d-living-inicio.jpg", end: "img/cuadros/2d-living-final.jpg" },
         { label: "Cocina y comedor", image: "img/renders/2-dormitorios/cocina-comedor.jpg" },
-        { label: "Dormitorio principal", image: "img/renders/2-dormitorios/dormitorio-principal.jpg" },
+        // Estilos: la misma toma con distintas terminaciones; se elige abajo y una se funde en la otra.
+        {
+          label: "Dormitorio principal",
+          caption: "Elegí el estilo",
+          styles: [
+            { label: "Pared lisa", image: "img/renders/2-dormitorios/dormitorio-principal-liso.jpg" },
+            { label: "Papel texturizado", image: "img/renders/2-dormitorios/dormitorio-principal-texturizado.jpg" },
+          ],
+        },
         // "Imaginar": el mismo dormitorio en tres etapas de la vida. Adentro se elige la etapa en una línea de tiempo;
         // cada toque reinicia su video y al terminar se funde en `end`: el render del dormitorio ambientado, sin gente.
         {
           label: "Dormitorio 2",
+          // En la Galería se ve esta imagen; la línea de tiempo se abre con su propio botón.
+          image: "img/renders/2-dormitorios/dormitorio-mayores.jpg",
           caption: "Imaginá tu espacio en unos años",
           stages: [
             { label: "Niñez", video: "video/dormitorio-bebe.mp4", start: "img/cuadros/dormitorio-bebe-inicio.jpg", end: "img/renders/2-dormitorios/dormitorio-bebe.jpg" },

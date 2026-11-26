@@ -1,4 +1,4 @@
-# Parrot Diseño · demo
+# Pilar de Diseño · demo
 
 Página de muestra para el estudio: portada, mapa de San Juan con las obras, portfolio con filtros, ficha de cada proyecto y contacto.
 

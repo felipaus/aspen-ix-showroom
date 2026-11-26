@@ -1616,29 +1616,23 @@ let unitParallax = null;
 
 // ---------- Alrededores ----------
 
-// Categorías de nearby.geojson (tools/lugares_osm.py): nombre, color e ícono (trazo SVG de 24×24).
+// Categorías de Alrededores (NEARBY en data.js): nombre, color e ícono (trazo SVG de 24×24). "ciudad" son los
+// lugares de la ciudad, con minutos en auto; las demás, lo que está a pie.
 const NEARBY_CATEGORIES = {
   educacion: { label: "Educación", color: "#3f6fb5", icon: "M2 9l10-5 10 5-10 5-10-5zm4 2.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5" },
   salud: { label: "Salud", color: "#c9473f", icon: "M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z" },
-  compras: { label: "Compras", color: "#d08a2a", icon: "M5 7h14l-1.5 12h-11zM9 7a3 3 0 016 0" },
-  gastronomia: { label: "Gastronomía", color: "#8b5a3c", icon: "M7 3v8m-2-8v5a2 2 0 004 0V3M7 11v10m9-18c-2 0-3 3-3 6s1 4 3 4v8" },
+  compras: { label: "Compras y comida", color: "#d08a2a", icon: "M5 7h14l-1.5 12h-11zM9 7a3 3 0 016 0" },
   verde: { label: "Plazas y deporte", color: "#3a9a6e", icon: "M12 3l5 7h-3l4 6H6l4-6H7zm0 13v5" },
-  servicios: { label: "Servicios", color: "#5f6b7a", icon: "M4 10l8-5 8 5M6 10v8m4-8v8m4-8v8m4-8v8M4 20h16" },
-  transporte: { label: "Colectivos", color: "#7a4fb0", icon: "M6 4h12a2 2 0 012 2v10H4V6a2 2 0 012-2zm-2 8h16M7 19v1m10-1v1M7.5 15.5h.01M16.5 15.5h.01" },
-};
-const KIND_LABELS = {
-  school: "Escuela", kindergarten: "Jardín", university: "Universidad", college: "Instituto",
-  hospital: "Hospital", clinic: "Clínica", pharmacy: "Farmacia", doctors: "Consultorio",
-  supermarket: "Supermercado", mall: "Shopping", convenience: "Almacén", bakery: "Panadería",
-  restaurant: "Restaurante", cafe: "Café", fast_food: "Comidas", ice_cream: "Heladería",
-  park: "Plaza", playground: "Juegos", sports_centre: "Club", fitness_centre: "Gimnasio",
-  bank: "Banco", atm: "Cajero", fuel: "Estación de servicio", police: "Policía", bus_stop: "Parada de colectivo",
+  movilidad: { label: "Movilidad", color: "#7a4fb0", icon: "M6 4h12a2 2 0 012 2v10H4V6a2 2 0 012-2zm-2 8h16M7 19v1m10-1v1M7.5 15.5h.01M16.5 15.5h.01" },
+  ciudad: { label: "En auto", color: "#35506e", icon: "M3 13l2-5a2 2 0 012-1h10a2 2 0 012 1l2 5v5H3zM3 13h18M7 16h.01M17 16h.01" },
 };
 const WALK_M_PER_MIN = 80;
-const NEARBY_FIT_M = 800;
+// Círculos alrededor del lote que muestran la cercanía sin leer distancias.
+const WALK_RINGS = [{ m: 400, label: "5 min a pie" }, { m: 800, label: "10 min a pie" }];
 const NEARBY_VIEW = { pitch: 45, bearing: -20 };
+const CITY_VIEW = { pitch: 30, bearing: -10 };
 
-let nearby = null; // { places, markers, lotMarker, category, active }
+let nearby = null; // { places, markers, ringLabels, lotMarker, category, active }
 
 const iconSvg = (path) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`;
@@ -1647,15 +1641,17 @@ function formatDistance(m) {
   return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
 }
 
+const isCity = (p) => p.category === "ciudad";
+const placeTime = (p) =>
+  isCity(p) ? `≈ ${p.driveMin} min en auto` : `${Math.max(1, Math.round(p.distance / WALK_M_PER_MIN))} min a pie`;
+
 // Sale de la implantación al mapa y muestra los lugares cercanos.
-async function openNearby() {
+function openNearby() {
   if (!nearby) {
-    const data = await (await fetch("nearby.geojson")).json();
-    const places = data.features
-      .filter((f) => NEARBY_CATEGORIES[f.properties.category])
-      .map((f, i) => ({ id: i, ...f.properties, at: f.geometry.coordinates }));
-    nearby = { places, markers: new Map(), category: "todos", active: null };
+    const places = [...NEARBY.walk, ...NEARBY.city.map((p) => ({ ...p, category: "ciudad" }))].map((p, i) => ({ ...p, id: i }));
+    nearby = { places, markers: new Map(), ringLabels: [], category: "todos", active: null };
     initNearbyMap(places);
+    renderNearbySummary();
     renderNearbyCats();
   }
   if (planViewOn) showPlanView(false);
@@ -1674,8 +1670,37 @@ async function closeNearby() {
   showPlanView(true);
 }
 
-// Marcadores de los lugares, el del lote y la línea punteada al lugar elegido.
+// Círculo de `m` metros alrededor de `center` ([lng, lat]), como línea cerrada. El primer punto es el norte.
+function ringCoords(center, m, steps = 72) {
+  const [lng, lat] = center;
+  const dLat = m / 110540;
+  const dLng = m / (111320 * Math.cos((lat * Math.PI) / 180));
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const a = (i / steps) * 2 * Math.PI;
+    return [lng + dLng * Math.sin(a), lat + dLat * Math.cos(a)];
+  });
+}
+
+// Marcadores de los lugares, el del lote, los círculos de 5 y 10 minutos y la línea punteada al lugar elegido.
 function initNearbyMap(places) {
+  map.addSource("nearby-rings", {
+    type: "geojson",
+    data: {
+      type: "FeatureCollection",
+      features: WALK_RINGS.map((r) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: ringCoords(sitePlan.center, r.m) } })),
+    },
+  });
+  map.addLayer({
+    id: "nearby-rings", type: "line", source: "nearby-rings", layout: { visibility: "none" },
+    paint: { "line-color": "#fff", "line-width": 1.6, "line-opacity": 0.75, "line-dasharray": [2, 2] },
+  });
+  for (const r of WALK_RINGS) {
+    const el = document.createElement("div");
+    el.className = "ring-label";
+    el.textContent = r.label;
+    const north = ringCoords(sitePlan.center, r.m, 4)[0];
+    nearby.ringLabels.push(new maplibregl.Marker({ element: el, opacity: "1", opacityWhenCovered: "1" }).setLngLat(north));
+  }
   map.addSource("nearby-route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   map.addLayer({
     id: "nearby-route", type: "line", source: "nearby-route", layout: { "line-cap": "round", visibility: "none" },
@@ -1687,8 +1712,9 @@ function initNearbyMap(places) {
     el.className = "poi-pin";
     el.style.setProperty("--cat", cat.color);
     el.setAttribute("aria-label", p.name);
-    el.innerHTML = `${iconSvg(cat.icon)}<span class="poi-label"></span>`;
-    el.querySelector(".poi-label").textContent = p.name;
+    el.innerHTML = `${iconSvg(cat.icon)}<span class="poi-label"><strong></strong><small></small></span>`;
+    el.querySelector(".poi-label strong").textContent = p.name;
+    el.querySelector(".poi-label small").textContent = `${p.desc} · ${placeTime(p)}`;
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       focusNearby(p.id);
@@ -1704,16 +1730,28 @@ function initNearbyMap(places) {
 
 function setNearbyLayers(show) {
   if (!nearby) return;
-  for (const m of nearby.markers.values()) show ? m.addTo(map) : m.remove();
-  show ? nearby.lotMarker.addTo(map) : nearby.lotMarker.remove();
+  for (const m of [...nearby.markers.values(), ...nearby.ringLabels, nearby.lotMarker]) show ? m.addTo(map) : m.remove();
   streetLabels.forEach(({ marker }) => (marker.getElement().style.visibility = show ? "hidden" : "")); // se pisaban con el lote
   map.setLayoutProperty("nearby-route", "visibility", show ? "visible" : "none");
+  map.setLayoutProperty("nearby-rings", "visibility", show ? "visible" : "none");
   if (!show) setNearbyActive(null);
 }
 
+// Resumen de arriba: lo más importante a menos de 10 minutos, de un vistazo. Cada ítem lleva a su categoría.
+function renderNearbySummary() {
+  $("nearby-summary").innerHTML =
+    `<p>A menos de 10 minutos a pie</p><div class="nearby-summary-items">` +
+    NEARBY.summary
+      .map((s) => `<button data-cat="${s.category}" style="--cat:${NEARBY_CATEGORIES[s.category].color}"><i></i>${s.label}</button>`)
+      .join("") +
+    `</div>`;
+  $("nearby-summary").querySelectorAll("[data-cat]").forEach((el) => el.addEventListener("click", () => setNearbyCategory(el.dataset.cat)));
+}
+
 function renderNearbyCats() {
-  const counts = (c) => nearby.places.filter((p) => c === "todos" || p.category === c).length;
-  const cats = [["todos", { label: "Todos", color: "#1f1f1f", icon: "M4 6h16M4 12h16M4 18h16" }], ...Object.entries(NEARBY_CATEGORIES)];
+  const counts = (c) => nearby.places.filter((p) => (c === "todos" ? !isCity(p) : p.category === c)).length;
+  const walkIcon = "M13 4a1 1 0 11-2 0 1 1 0 012 0zM10 21l2-6 2 2v4m-4-11l2-2 3 3 2 1M10 10l-2 4";
+  const cats = [["todos", { label: "Todo a pie", color: "#1f1f1f", icon: walkIcon }], ...Object.entries(NEARBY_CATEGORIES)];
   $("nearby-cats").innerHTML = cats
     .filter(([id]) => counts(id))
     .map(([id, c]) => `<button class="nearby-cat" data-cat="${id}" style="--cat:${c.color}">${iconSvg(c.icon)}${c.label}</button>`)
@@ -1721,37 +1759,41 @@ function renderNearbyCats() {
   $("nearby-cats").querySelectorAll("[data-cat]").forEach((el) => el.addEventListener("click", () => setNearbyCategory(el.dataset.cat)));
 }
 
-// Filtra lista y mapa por categoría y encuadra la cámara para ver el lote y esos lugares.
+// Filtra lista y mapa por categoría (en el mapa solo quedan los de esa categoría) y encuadra la cámara.
+// "todos" son todos los lugares a pie; "ciudad", los de la ciudad.
 function setNearbyCategory(category) {
   nearby.category = category;
   setNearbyActive(null);
   $("nearby-cats").querySelectorAll("[data-cat]").forEach((el) => el.classList.toggle("active", el.dataset.cat === category));
+  $("nearby-summary").querySelectorAll("[data-cat]").forEach((el) => el.classList.toggle("active", el.dataset.cat === category));
   const shown = nearby.places
-    .filter((p) => category === "todos" || p.category === category)
+    .filter((p) => (category === "todos" ? !isCity(p) : p.category === category))
     .sort((a, b) => a.distance - b.distance);
   for (const [id, m] of nearby.markers) m.getElement().classList.toggle("off", !shown.some((p) => p.id === id));
   $("nearby-list").innerHTML = shown
     .map((p) => {
       const cat = NEARBY_CATEGORIES[p.category];
-      const minutes = Math.max(1, Math.round(p.distance / WALK_M_PER_MIN));
       return `<li><button class="nearby-item" data-place="${p.id}">
         <span class="nearby-icon" style="--cat:${cat.color}">${iconSvg(cat.icon)}</span>
-        <span class="nearby-text"><strong></strong><small>${KIND_LABELS[p.kind] ?? cat.label}</small></span>
-        <span class="nearby-dist">${formatDistance(p.distance)}<small>${minutes} min a pie</small></span>
+        <span class="nearby-text"><strong></strong><small></small></span>
+        <span class="nearby-dist">${formatDistance(p.distance)}<small>${placeTime(p)}</small></span>
       </button></li>`;
     })
     .join("");
   $("nearby-list").querySelectorAll("[data-place]").forEach((el) => {
-    el.querySelector("strong").textContent = nearby.places[+el.dataset.place].name; // nombre como texto, no HTML
-    el.addEventListener("click", () => focusNearby(+el.dataset.place));
-    el.addEventListener("mouseenter", () => nearby.markers.get(+el.dataset.place).getElement().classList.add("active"));
-    el.addEventListener("mouseleave", () => nearby.active !== +el.dataset.place && nearby.markers.get(+el.dataset.place).getElement().classList.remove("active"));
+    const p = nearby.places[+el.dataset.place];
+    el.querySelector("strong").textContent = p.name; // como texto, no HTML
+    el.querySelector(".nearby-text small").textContent = p.desc;
+    el.addEventListener("click", () => focusNearby(p.id));
+    el.addEventListener("mouseenter", () => nearby.markers.get(p.id).getElement().classList.add("active"));
+    el.addEventListener("mouseleave", () => nearby.active !== p.id && nearby.markers.get(p.id).getElement().classList.remove("active"));
   });
-  // Encuadre: lo que está a una cuadra larga; lo más lejano queda marcado aunque no entre de entrada.
+  // Encuadre: a pie, el círculo de 10 minutos (y lo que quede fuera de él); en auto, la ciudad.
   const bounds = new maplibregl.LngLatBounds(sitePlan.center, sitePlan.center);
-  const near = shown.filter((p) => p.distance <= NEARBY_FIT_M);
-  (near.length ? near : shown).forEach((p) => bounds.extend(p.at));
-  map.fitBounds(bounds, { padding: nearbyPadding(), maxZoom: 17, ...NEARBY_VIEW, duration: 1400, essential: true });
+  if (category !== "ciudad") ringCoords(sitePlan.center, WALK_RINGS[WALK_RINGS.length - 1].m, 8).forEach((c) => bounds.extend(c));
+  shown.forEach((p) => bounds.extend(p.at));
+  const view = category === "ciudad" ? CITY_VIEW : NEARBY_VIEW;
+  map.fitBounds(bounds, { padding: nearbyPadding(), maxZoom: 17, ...view, duration: 1400, essential: true });
 }
 
 // Margen para encuadrar sin que el panel tape los lugares.
@@ -1768,7 +1810,7 @@ function focusNearby(id) {
   setNearbyActive(id);
   $("nearby-list").querySelector(`[data-place="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   const bounds = new maplibregl.LngLatBounds(sitePlan.center, sitePlan.center).extend(p.at);
-  map.fitBounds(bounds, { padding: nearbyPadding(), maxZoom: 17.5, ...NEARBY_VIEW, duration: 1200, essential: true });
+  map.fitBounds(bounds, { padding: nearbyPadding(), maxZoom: 17.5, ...(isCity(p) ? CITY_VIEW : NEARBY_VIEW), duration: 1200, essential: true });
 }
 
 function setNearbyActive(id) {

@@ -495,7 +495,23 @@ a { color: inherit; text-decoration: none; }
 .nearby-head { display: flex; justify-content: space-between; align-items: flex-start; }
 .nearby-head h2 { font-family: var(--serif); font-size: 1.6rem; margin-top: 2px; }
 .nearby-head .close { position: static; }
-.nearby-cats { display: flex; gap: 6px; overflow-x: auto; padding: 14px 0 12px; scrollbar-width: none; flex: none; }
+/* Resumen: lo importante a menos de 10 minutos, en etiquetas que llevan a su categoría. */
+.nearby-summary { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: rgba(47, 111, 94, .08); flex: none; }
+.nearby-summary p { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+.nearby-summary-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.nearby-summary-items button {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 0; cursor: pointer;
+  background: #fff; font: inherit; font-size: .8rem; font-weight: 600; color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+  transition: box-shadow .2s ease;
+}
+.nearby-summary-items button i { width: 8px; height: 8px; border-radius: 50%; background: var(--cat); }
+.nearby-summary-items button:hover, .nearby-summary-items button.active { box-shadow: 0 0 0 2px var(--cat); }
+.nearby-cats { display: flex; gap: 6px; overflow-x: auto; padding: 12px 0 10px; scrollbar-width: none; flex: none; }
+/* Círculos de 5 y 10 minutos a pie alrededor del lote. */
+.ring-label {
+  padding: 3px 9px; border-radius: 999px; background: rgba(20, 24, 22, .6); color: #fff;
+  font-size: .72rem; font-weight: 600; white-space: nowrap; pointer-events: none;
+}
 .nearby-cats::-webkit-scrollbar { display: none; }
 .nearby-cat {
   display: flex; align-items: center; gap: 6px; flex: none; padding: 7px 12px; border-radius: 999px;
@@ -567,3 +583,7 @@ a { color: inherit; text-decoration: none; }
   .gallery-stages { bottom: 52px; padding: 12px 12px 10px; }
   .stage span { font-size: .82rem; }
 }
+
+/* Cartel del lugar en el mapa: nombre y, debajo, qué es y a cuánto queda. */
+.poi-label strong { display: block; }
+.poi-label small { display: block; font-weight: 400; color: var(--muted); font-size: .72rem; margin-top: 1px; }

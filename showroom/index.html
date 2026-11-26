@@ -20,9 +20,9 @@
   <script src="vendor/maplibre-5.24.0/maplibre-gl.js" defer></script>
 
   <!-- ?v= obliga al navegador a bajar la versión nueva: subir el número cada vez que cambien estos archivos -->
-  <link rel="stylesheet" href="showroom.css?v=36" />
-  <script src="data.js?v=32" defer></script>
-  <script src="showroom.js?v=46" defer></script>
+  <link rel="stylesheet" href="showroom.css?v=37" />
+  <script src="data.js?v=33" defer></script>
+  <script src="showroom.js?v=47" defer></script>
 </head>
 <body>
   <div id="map"></div>
@@ -80,9 +80,10 @@
       </div>
       <button class="close" data-close-nearby aria-label="Volver a la implantación">×</button>
     </div>
+    <div id="nearby-summary" class="nearby-summary"></div>
     <div id="nearby-cats" class="nearby-cats"></div>
     <ul id="nearby-list" class="nearby-list"></ul>
-    <p class="nearby-note">Distancias en línea recta desde el lote · Datos © OpenStreetMap</p>
+    <p class="nearby-note">A pie: distancia en línea recta desde el lote · En auto: tiempos estimados · Datos © OpenStreetMap</p>
   </aside>
 
   <!-- Implantación a pantalla completa: al terminar la intro se sale del mapa y queda la imagen sola -->

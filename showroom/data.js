@@ -262,3 +262,47 @@ const UNITS = (() => {
   }
   return list;
 })();
+
+// Alrededores: lugares elegidos (no todo lo que hay en OpenStreetMap), con una descripción clara.
+// `walk`: a pie, con distancia en línea recta desde el lote (m). `city`: lugares de la ciudad, con minutos en auto
+// estimados (distancia por calles ≈ 1,35 × la recta, a la velocidad promedio de la zona). `summary`: el resumen de
+// arriba del panel; cada ítem lleva a su categoría. Coordenadas de OpenStreetMap (tools/lugares_osm.py).
+const NEARBY = {
+  summary: [
+    { label: "Hospital público", category: "salud" },
+    { label: "2 colegios", category: "educacion" },
+    { label: "Supermercado", category: "compras" },
+    { label: "4 plazas", category: "verde" },
+    { label: "Colectivos a 3 min", category: "movilidad" },
+  ],
+  walk: [
+    { category: "educacion", name: "Colegio Integral Independencia", desc: "Colegio · primario y secundario", at: [-68.591405, -31.529266], distance: 160 },
+    { category: "educacion", name: "Colegio Inglés", desc: "Colegio", at: [-68.587781, -31.532551], distance: 654 },
+    { category: "salud", name: "Hospital Marcial Quiroga", desc: "Hospital público", at: [-68.596778, -31.529984], distance: 493 },
+    { category: "salud", name: "Clínica San Martín", desc: "Clínica privada", at: [-68.593844, -31.530171], distance: 292 },
+    { category: "salud", name: "Farmacia Central", desc: "Farmacia", at: [-68.595631, -31.530843], distance: 459 },
+    { category: "compras", name: "Vea", desc: "Supermercado", at: [-68.587593, -31.528973], distance: 446 },
+    { category: "compras", name: "Panadería Dulce Ana", desc: "Panadería", at: [-68.595354, -31.530779], distance: 435 },
+    { category: "compras", name: "Parrilla Los Nogales", desc: "Restaurante · parrilla", at: [-68.595336, -31.525296], distance: 423 },
+    { category: "compras", name: "Grido", desc: "Heladería", at: [-68.595854, -31.530890], distance: 478 },
+    { category: "verde", name: "Plaza Jardín San Roberto", desc: "Plaza", at: [-68.589997, -31.528442], distance: 210 },
+    { category: "verde", name: "Plaza Gendarmería Nacional", desc: "Plaza", at: [-68.590373, -31.530746], distance: 350 },
+    { category: "verde", name: "Plaza María Montessori", desc: "Plaza", at: [-68.590389, -31.524961], distance: 371 },
+    { category: "verde", name: "Paseo Sarmiento", desc: "Plaza y paseo", at: [-68.594153, -31.530945], distance: 381 },
+    { category: "verde", name: "Baika Club", desc: "Gimnasio", at: [-68.594478, -31.531165], distance: 417 },
+    { category: "movilidad", name: "Colectivos en Av. Libertador", desc: "Paradas de colectivo", at: [-68.591845, -31.529958], distance: 222 },
+    { category: "movilidad", name: "Colectivos en Rastreador Calivar", desc: "Paradas de colectivo", at: [-68.595013, -31.527280], distance: 283 },
+    { category: "movilidad", name: "Estación de servicio Gulf", desc: "Combustible", at: [-68.591037, -31.530223], distance: 270 },
+    { category: "movilidad", name: "Comisaría 13", desc: "Policía", at: [-68.595106, -31.530932], distance: 432 },
+  ],
+  city: [
+    { name: "Paseo Oeste Open Mall", desc: "Centro comercial", at: [-68.590362, -31.539078], distance: 1240, driveMin: 4 },
+    { name: "Universidad Católica de Cuyo", desc: "Universidad", at: [-68.585262, -31.540151], distance: 1497, driveMin: 5 },
+    { name: "Universidad Nacional de San Juan", desc: "Complejo universitario", at: [-68.577550, -31.541650], distance: 2050, driveMin: 6 },
+    { name: "Espacio San Juan Shopping", desc: "Shopping", at: [-68.572810, -31.540376], distance: 2290, driveMin: 6 },
+    { name: "Parque de Mayo", desc: "Parque", at: [-68.541706, -31.532416], distance: 4811, driveMin: 11 },
+    { name: "Centro · Plaza 25 de Mayo", desc: "Centro de la ciudad", at: [-68.525030, -31.537231], distance: 6450, driveMin: 15 },
+    { name: "Terminal de Ómnibus", desc: "Terminal", at: [-68.510726, -31.539198], distance: 7824, driveMin: 18 },
+    { name: "Aeropuerto de San Juan", desc: "Aeropuerto", at: [-68.420019, -31.569838], distance: 16975, driveMin: 27 },
+  ],
+};

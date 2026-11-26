@@ -5,7 +5,7 @@
   --muted: #6b6b6b;
   --accent: #2f6f5e;
   --radius: 14px;
-  --serif: "Playfair Display", Georgia, serif;
+  --serif: var(--sans); /* una sola tipografía: Inter */
   --sans: "Inter", system-ui, sans-serif;
 }
 

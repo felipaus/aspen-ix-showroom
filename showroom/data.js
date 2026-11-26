@@ -187,14 +187,14 @@ const SITE_PLAN = {
         { label: "Cocina y comedor", image: "img/renders/2-dormitorios/cocina-comedor.jpg" },
         { label: "Dormitorio principal", image: "img/renders/2-dormitorios/dormitorio-principal.jpg" },
         // "Imaginar": el mismo dormitorio en tres etapas de la vida. Adentro se elige la etapa en una línea de tiempo;
-        // cada toque reinicia su video y al terminar vuelve a su primer cuadro (`end` = `start`, la toma abierta).
+        // cada toque reinicia su video y al terminar se funde en `end`: el render del dormitorio ambientado, sin gente.
         {
           label: "Dormitorio 2",
           caption: "Imaginá tu espacio en unos años",
           stages: [
-            { label: "Niñez", video: "video/dormitorio-bebe.mp4", start: "img/cuadros/dormitorio-bebe-inicio.jpg", end: "img/cuadros/dormitorio-bebe-inicio.jpg" },
-            { label: "Juventud", video: "video/dormitorio-juvenil.mp4", start: "img/cuadros/dormitorio-juvenil-inicio.jpg", end: "img/cuadros/dormitorio-juvenil-inicio.jpg" },
-            { label: "Adultez", video: "video/dormitorio-mayores.mp4", start: "img/cuadros/dormitorio-mayores-inicio.jpg", end: "img/cuadros/dormitorio-mayores-inicio.jpg" },
+            { label: "Niñez", video: "video/dormitorio-bebe.mp4", start: "img/cuadros/dormitorio-bebe-inicio.jpg", end: "img/renders/2-dormitorios/dormitorio-bebe.jpg" },
+            { label: "Juventud", video: "video/dormitorio-juvenil.mp4", start: "img/cuadros/dormitorio-juvenil-inicio.jpg", end: "img/renders/2-dormitorios/dormitorio-juvenil.jpg" },
+            { label: "Adultez", video: "video/dormitorio-mayores.mp4", start: "img/cuadros/dormitorio-mayores-inicio.jpg", end: "img/renders/2-dormitorios/dormitorio-mayores.jpg" },
           ],
         },
       ],

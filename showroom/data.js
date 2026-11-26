@@ -42,9 +42,25 @@ const SITE_PLAN = {
   // (disponible, reservada o vendida, que se ve en gris). `status` vale para toda la planta y `except` cambia
   // departamentos sueltos, por ejemplo { D3: "reservada" }. Para la demo: la baja toda disponible y la alta vendida.
   floors: [
-    { id: "baja", label: "Planta baja", status: "disponible", except: {} },
-    { id: "alta", label: "Planta alta", status: "vendida", except: {} },
+    // DATOS DE DEMO: reemplazar por el estado real de cada departamento.
+    {
+      id: "baja", label: "Planta baja", status: "disponible",
+      except: { D2: "vendida", D5: "reservada", D9: "vendida", A3: "vendida", A6: "reservada", B2: "vendida", B5: "vendida", B7: "reservada" },
+    },
+    {
+      id: "alta", label: "Planta alta", status: "vendida",
+      except: { D1: "disponible", D4: "disponible", D7: "reservada", D10: "disponible", A1: "disponible", A5: "disponible", A8: "reservada", B3: "disponible", B6: "disponible", B8: "reservada" },
+    },
   ],
+  // Características que muestra la tarjeta al pasar el mouse por un departamento, por tipología (salen de los planos:
+  // confirmarlas con el cliente). `area` en m² (null = no se muestra). Un departamento puede pisar `area` o `price`
+  // con sus propios valores en `units`, por ejemplo { id: "D1", ..., area: 92, price: "USD 98.000" }.
+  typologyInfo: {
+    duplex: { features: ["2 dormitorios", "2 baños", "Vestidor", "Dos plantas"], area: null },
+    monoambiente: { features: ["Ambiente integrado", "Dormitorio, cocina y comedor"], area: null },
+    "1-dormitorio": { features: ["1 dormitorio", "Cocina y comedor"], area: null },
+    "2-dormitorios": { features: ["2 dormitorios", "Vestidor", "Living", "Cocina y comedor"], area: null },
+  },
   // Departamentos marcados sobre la implantación. `box`: [izquierda, arriba, derecha, abajo] en píxeles de la imagen
   // (imageSize). `typology` es el id del recorrido 360° (TOURS_360) y de los renders; si una tipología todavía no
   // tiene renders propios, se muestran los del Duplex.

@@ -31,8 +31,8 @@ const TERRAIN_SOURCE = {
 };
 const TERRAIN = { source: "terrain", exaggeration: 1 };
 
-const STATUS_COLORS = { disponible: "#3a9a6e", reservada: "#d9a23a", vendida: "#9a9a9a" };
-const STATUS_HOVER_COLORS = { disponible: "#62c796", reservada: "#f2c063", vendida: "#c2c2c2" };
+const STATUS_COLORS = { disponible: "#2fa36b", reservada: "#e8912d", vendida: "#d2483c" };
+const STATUS_HOVER_COLORS = { disponible: "#5cc792", reservada: "#f4ad58", vendida: "#e5776d" };
 
 // Departamentos en la planta del piso (coordenadas del SVG del panel, 340×220). El mapa usa las mismas.
 const PLAN = { x: 10, y: 10, width: 320, height: 200 };
@@ -1103,7 +1103,8 @@ function initUnitSpots() {
   $("unit-spots").innerHTML = sitePlan.units
     .map(({ id, box: [x0, y0, x1, y1] }) => {
       const style = `left:${pct(x0 / w)};top:${pct(y0 / h)};width:${pct((x1 - x0) / w)};height:${pct((y1 - y0) / h)}`;
-      return `<button class="unit-spot" data-unit="${id}" style="${style}" aria-label="Departamento ${id}"></button>`;
+      // El punto marca el departamento en reposo; el área se pinta recién al pasar el mouse.
+      return `<button class="unit-spot" data-unit="${id}" style="${style}" aria-label="Departamento ${id}"><i class="unit-dot"></i></button>`;
     })
     .join("");
   $("unit-spots").querySelectorAll("[data-unit]").forEach((el) => {
@@ -1112,8 +1113,8 @@ function initUnitSpots() {
       hideUnitSpotTip();
       openUnitView(el.dataset.unit);
     });
-    // Con mouse: etiqueta con tipología, número y estado al pasar por encima.
-    el.addEventListener("pointermove", (e) => e.pointerType === "mouse" && showUnitSpotTip(el.dataset.unit, e));
+    // Con mouse: tarjeta con las características del departamento, junto a su punto.
+    el.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && showUnitSpotTip(el.dataset.unit, el));
     el.addEventListener("pointerleave", hideUnitSpotTip);
   });
   $("floor-switch").innerHTML = sitePlan.floors.map((f) => `<button data-floor="${f.id}">${f.label}</button>`).join("");
@@ -1142,20 +1143,42 @@ function unitLabel(unit) {
   return `${TOURS_360.find((t) => t.id === unit.typology)?.label ?? unit.typology} · ${unit.id}`;
 }
 
-function showUnitSpotTip(unitId, e) {
-  const tip = $("unit-tip");
-  if (tip.dataset.unit !== unitId) {
-    const status = unitStatus(unitId);
-    tip.innerHTML = `<strong>${unitLabel(sitePlan.units.find((u) => u.id === unitId))}</strong><em class="badge ${status}">${STATUS_LABELS[status]}</em>`;
-    tip.dataset.unit = unitId;
-  }
-  tip.hidden = false;
-  tip.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 14}px)`;
+// Tarjeta del departamento: número, estado, tipología, planta y características (SITE_PLAN.typologyInfo). Se apoya
+// sobre el punto, o debajo si no entra arriba, y nunca se sale de la pantalla por los costados.
+function showUnitSpotTip(unitId, spot) {
+  const card = $("unit-card");
+  const unit = sitePlan.units.find((u) => u.id === unitId);
+  const status = unitStatus(unitId);
+  const info = sitePlan.typologyInfo?.[unit.typology] ?? {};
+  const area = unit.area ?? info.area;
+  const typology = TOURS_360.find((t) => t.id === unit.typology)?.label ?? unit.typology;
+  const floor = sitePlan.floors.find((f) => f.id === currentPlanFloor)?.label ?? "";
+  const feats = [...(area ? [`${area} m²`] : []), ...(info.features ?? [])];
+  card.className = `unit-card glass ${status}`;
+  card.innerHTML = `
+    <div class="uc-head"><span class="uc-id">Unidad ${unit.id}</span><em class="badge ${status}">${STATUS_LABELS[status]}</em></div>
+    <strong class="uc-type">${typology}</strong>
+    <span class="uc-floor">${floor}</span>
+    ${feats.length ? `<ul class="uc-feats">${feats.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
+    ${unit.price && status !== "vendida" ? `<span class="uc-price">${unit.price}</span>` : ""}
+    <span class="uc-cta">${status === "vendida" ? "Ver planos y renders" : "Tocá para ver la unidad"} →</span>`;
+  card.hidden = false;
+  const dot = spot.querySelector(".unit-dot").getBoundingClientRect();
+  const cx = dot.left + dot.width / 2;
+  const above = dot.top > card.offsetHeight + 90; // deja lugar a la barra de arriba
+  const half = card.offsetWidth / 2;
+  const x = Math.min(Math.max(cx, half + 12), innerWidth - half - 12);
+  card.style.left = `${x}px`;
+  card.style.top = `${above ? dot.top - 14 : dot.bottom + 14}px`;
+  card.style.setProperty("--arrow-x", `${cx - x + half}px`);
+  card.classList.toggle("below", !above);
+  requestAnimationFrame(() => card.classList.add("visible"));
 }
 
 function hideUnitSpotTip() {
-  $("unit-tip").hidden = true;
-  delete $("unit-tip").dataset.unit;
+  const card = $("unit-card");
+  card.classList.remove("visible");
+  card.hidden = true;
 }
 
 // Renders de la tipología del departamento; sin renders propios, los del Duplex (el general).

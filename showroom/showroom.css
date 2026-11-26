@@ -5,9 +5,9 @@
   --gold: #c08a2d;
   --serif: "Playfair Display", Georgia, serif;
   --sans: "Inter", system-ui, sans-serif;
-  --disponible: #3a9a6e;
-  --reservada: #d9a23a;
-  --vendida: #9a9a9a;
+  --disponible: #2fa36b;
+  --reservada: #e8912d;
+  --vendida: #d2483c;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -319,18 +319,60 @@ a { color: inherit; text-decoration: none; }
   background: var(--gallery-bg) center / cover; filter: blur(28px) brightness(.55);
 }
 
-/* Departamentos sobre la implantación: color según el estado en la planta elegida (vendida = gris, "borrada"). */
+/* Departamentos sobre la implantación: en reposo, solo un punto del color de su estado en la planta elegida
+   (verde disponible, naranja reservada, rojo vendida). Al pasar el mouse, el departamento se pinta de ese color. */
 .unit-spot {
-  position: absolute; border-radius: 3px; cursor: pointer; background: transparent;
-  transition: background-color .45s ease, box-shadow .2s ease, backdrop-filter .45s ease;
+  --st: var(--disponible);
+  position: absolute; border-radius: 4px; cursor: pointer; background: transparent; border: 0; padding: 0;
+  transition: background-color .3s ease, box-shadow .3s ease;
 }
-.unit-spot.disponible { background-color: rgba(58, 154, 110, .3); box-shadow: inset 0 0 0 2px rgba(98, 199, 150, .95); }
-.unit-spot.reservada { background-color: rgba(217, 162, 58, .32); box-shadow: inset 0 0 0 2px rgba(242, 192, 99, .95); }
-.unit-spot.vendida {
-  background-color: rgba(140, 140, 140, .62); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .4);
-  backdrop-filter: grayscale(1); -webkit-backdrop-filter: grayscale(1);
+.unit-spot.reservada { --st: var(--reservada); }
+.unit-spot.vendida { --st: var(--vendida); }
+.unit-spot:hover, .unit-spot.active {
+  background-color: color-mix(in srgb, var(--st) 34%, transparent);
+  box-shadow: inset 0 0 0 2px var(--st), 0 0 24px color-mix(in srgb, var(--st) 45%, transparent);
 }
-.unit-spot:hover, .unit-spot.active { box-shadow: inset 0 0 0 3px #f3c76a; }
+.unit-dot {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--st); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+  transition: transform .25s ease, background-color .3s ease;
+}
+.unit-spot.vendida .unit-dot { width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; }
+.unit-spot:hover .unit-dot, .unit-spot.active .unit-dot { transform: scale(1.35); }
+/* Los disponibles laten suave, para que se vean primero. */
+.unit-spot.disponible .unit-dot::after {
+  content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--st);
+  animation: dot-pulse 2.4s ease-out infinite;
+}
+@keyframes dot-pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .unit-spot.disponible .unit-dot::after { animation: none; } }
+
+/* Tarjeta del departamento: sobre el punto (o debajo, con .below), con una flecha que lo señala. */
+.unit-card {
+  position: fixed; z-index: 30; pointer-events: none; width: 230px; padding: 14px 16px 12px; border-radius: 14px;
+  display: flex; flex-direction: column; gap: 3px; font-size: .85rem; color: #1d2522;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .28);
+  transform: translate(-50%, calc(-100% + 6px)); opacity: 0; transition: opacity .2s ease, transform .2s ease;
+}
+.unit-card.visible { opacity: 1; transform: translate(-50%, -100%); }
+.unit-card.below { transform: translate(-50%, -6px); }
+.unit-card.below.visible { transform: translate(-50%, 0); }
+.unit-card::after {
+  content: ""; position: absolute; left: var(--arrow-x, 50%); top: 100%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  background: inherit; transform: rotate(45deg); border-radius: 2px;
+}
+.unit-card.below::after { top: 0; }
+.unit-card[hidden] { display: none; }
+.uc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.uc-id { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .65; font-weight: 600; }
+.uc-type { font-size: 1.15rem; margin-top: 4px; }
+.uc-floor { opacity: .65; font-size: .8rem; }
+.uc-feats { list-style: none; margin: 8px 0 2px; padding: 8px 0 0; border-top: 1px solid rgba(0, 0, 0, .1); display: grid; gap: 4px; }
+.uc-feats li { display: flex; gap: 7px; align-items: center; }
+.uc-feats li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex: none; }
+.uc-price { font-weight: 700; font-size: 1rem; margin-top: 4px; }
+.uc-cta { margin-top: 8px; font-size: .78rem; font-weight: 600; color: var(--accent); }
+.unit-card.vendida .uc-cta { color: #6b7470; }
 
 /* Selector de planta, abajo al centro. */
 .floor-switch {

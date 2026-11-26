@@ -20,9 +20,9 @@
   <script src="vendor/maplibre-5.24.0/maplibre-gl.js" defer></script>
 
   <!-- ?v= obliga al navegador a bajar la versión nueva: subir el número cada vez que cambien estos archivos -->
-  <link rel="stylesheet" href="showroom.css?v=34" />
-  <script src="data.js?v=31" defer></script>
-  <script src="showroom.js?v=43" defer></script>
+  <link rel="stylesheet" href="showroom.css?v=35" />
+  <script src="data.js?v=32" defer></script>
+  <script src="showroom.js?v=44" defer></script>
 </head>
 <body>
   <div id="map"></div>
@@ -139,6 +139,8 @@
 
   <!-- Etiqueta al pasar sobre un departamento en la vista desde arriba -->
   <div id="unit-tip" class="unit-tip glass" hidden></div>
+  <!-- Tarjeta del departamento al pasar el mouse por la implantación -->
+  <div id="unit-card" class="unit-card glass" hidden></div>
 
   <!-- Panel de un piso -->
   <aside id="floor-panel" class="side-panel glass" hidden>

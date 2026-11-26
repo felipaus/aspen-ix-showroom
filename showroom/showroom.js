@@ -1510,8 +1510,9 @@ function showGalleryItem(title, item, token) {
   stopGalleryVideo();
   const img = $("gallery-img");
   const still = galleryStill(item);
-  // Los videos son apaisados como la pantalla: llenan el visor. Las imágenes casi cuadradas se ven enteras.
-  img.style.objectFit = item.video ? "cover" : item.fit || "cover";
+  // Los videos y sus cuadros se ven siempre enteros (sin recortar arriba y abajo cuando el visor es más ancho que
+  // el video); lo que sobra a los costados lo llena la misma imagen desenfocada.
+  img.style.objectFit = item.video ? "contain" : item.fit || "cover";
   img.style.objectPosition = item.focus || "50% 50%";
   img.classList.toggle("media-video", !!item.video);
   img.alt = `${title} · ${item.label}`;

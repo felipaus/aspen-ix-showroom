@@ -548,7 +548,7 @@ a { color: inherit; text-decoration: none; }
 /* Video dentro del visor (ambientaciones del dormitorio 2): entero, encima de la imagen. */
 /* Video dentro del visor: aparece fundido sobre su primer cuadro y al terminar se funde en la imagen final. */
 .gallery-video {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 1;
   opacity: 0; transition: opacity .5s ease;
 }
 .gallery-video.shown { opacity: 1; }

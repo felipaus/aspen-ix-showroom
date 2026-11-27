@@ -42,6 +42,8 @@ const STATUS_LABELS = { disponible: "Disponible", reservada: "Reservada", vendid
 const INTERACTION_HANDLERS = ["scrollZoom", "boxZoom", "dragRotate", "dragPan", "keyboard", "doubleClickZoom", "touchZoomRotate"];
 
 const $ = (id) => document.getElementById(id);
+// Avisos para ventas.js (buscador, favoritas, links): showroom:plan, floor, maqueta, maqueta-close, unit, unit-close.
+const emit = (name, detail = {}) => document.dispatchEvent(new CustomEvent(`showroom:${name}`, { detail }));
 
 // Implantación (data.js). Si no está, el showroom muestra la torre como siempre.
 const sitePlan = typeof SITE_PLAN === "undefined" ? null : SITE_PLAN;
@@ -146,6 +148,7 @@ function initMap() {
           "source-layer": "building",
           minzoom: 14,
           maxzoom: NEAR_BUILDINGS_ZOOM,
+          layout: { visibility: PROJECT.cityBuildings === false ? "none" : "visible" },
           paint: {
             "fill-extrusion-color": CITY_COLOR,
             "fill-extrusion-height": ["coalesce", ["get", "render_height"], 6],
@@ -158,6 +161,7 @@ function initMap() {
           type: "fill-extrusion",
           source: "near-buildings",
           minzoom: NEAR_BUILDINGS_ZOOM,
+          layout: { visibility: PROJECT.cityBuildings === false ? "none" : "visible" },
           paint: {
             "fill-extrusion-color": CITY_COLOR,
             "fill-extrusion-height": ["get", "height"],
@@ -613,9 +617,6 @@ function selectFloor(floor) {
 // ---------- Intro ----------
 
 function startLoadingProgress() {
-  const ring = $("ring-fg");
-  const circumference = 2 * Math.PI * 54;
-  ring.style.strokeDasharray = circumference;
   let progress = 0;
   let ready = false;
   map.once("idle", () => (ready = true));
@@ -626,8 +627,8 @@ function startLoadingProgress() {
   const tick = () => {
     const target = ready ? 100 : 90;
     progress = Math.min(target, progress + (ready ? 4 : 1.2));
-    ring.style.strokeDashoffset = circumference * (1 - progress / 100);
-    $("intro-progress").textContent = `${Math.round(progress)}%`;
+    $("intro-progress").style.setProperty("--p", progress / 100);
+    $("intro-progress").setAttribute("aria-valuenow", Math.round(progress));
     if (progress < 100) return requestAnimationFrame(tick);
     $("intro-progress").hidden = true;
     $("enter-btn").hidden = false;
@@ -649,7 +650,7 @@ function initIntroVideo() {
   v.src = isPhone() && cfg.phone ? cfg.phone : cfg.src; // queda bajando mientras corre el vuelo
   $("hero-name").textContent = PROJECT.name;
   $("hero-tagline").textContent = PROJECT.tagline;
-  $("hero-stats").innerHTML = $("intro-stats").innerHTML;
+  $("hero-skip").addEventListener("click", leaveHero);
 }
 
 function showHero() {
@@ -696,12 +697,13 @@ async function runIntro() {
   $("intro-controls").hidden = false;
   const startedAt = performance.now();
   const total = sitePlan
-    ? FLY_TO_CITY_MS + FLY_TO_LOT_MS + MARK_STREETS_MS + DRAW_LOT_MS + LOT_FILL_MS + TOP_DOWN_MS * 0.4 + PLAN_FADE_MS
+    ? FLY_TO_CITY_MS + FLY_TO_LOT_MS + MARK_STREETS_MS + DRAW_LOT_MS + LOT_FILL_MS +
+      (PROJECT.introVideo ? TOP_DOWN_MS : TOP_DOWN_MS * 0.4 + PLAN_FADE_MS)
     : INTRO_TOTAL_MS;
+  // Barra fina de progreso junto a "Saltar intro".
   const countdown = setInterval(() => {
-    const left = Math.max(0, Math.ceil((total - (performance.now() - startedAt)) / 1000));
-    $("countdown").textContent = `faltan ${left}s`;
-  }, 250);
+    $("countdown").style.setProperty("--k", Math.min(1, (performance.now() - startedAt) / total).toFixed(3));
+  }, 100);
 
   // flyTo mantiene durante todo el vuelo la altura del centro con la que arranca. Si arranca con la del punto
   // de partida (~335 m en La Pampa), al llegar al lote (~640 m) la cámara queda bajo el relieve, MapLibre la
@@ -905,7 +907,7 @@ function finishIntro() {
     $("facade-btn").hidden = !sitePlan.facade;
     $("techplan-btn").hidden = !sitePlan.technicalPlan;
     $("nearby-btn").hidden = false;
-    $("search-btn").hidden = true;
+    $("search-btn").hidden = false; // panel de unidades (ventas.js)
     $("tour-btn").hidden = true;
     $("view-toggle").hidden = false;
     // Con video: el mapa desde arriba se funde en el video y la implantación se abre al tocar el edificio.
@@ -1283,7 +1285,8 @@ function setPlanFloor(floorId) {
     el.classList.add(unitStatus(el.dataset.unit));
   });
   const free = sitePlan.units.filter((u) => unitStatus(u.id) === "disponible").length;
-  $("floor-count").textContent = free ? `${free} ${free === 1 ? "disponible" : "disponibles"}` : "Sin unidades disponibles";
+  $("floor-count").innerHTML = free ? `<strong>${free}</strong> ${free === 1 ? "disponible" : "disponibles"}` : "Sin unidades disponibles";
+  emit("floor", { floor: floorId });
 }
 
 function unitLabel(unit) {
@@ -1330,6 +1333,7 @@ function openMaqueta(unitId, spot) {
   view.hidden = false;
   void view.offsetWidth;
   view.classList.add("visible");
+  emit("maqueta", { unitId });
 }
 
 function closeMaqueta(keepActive = false) {
@@ -1338,6 +1342,7 @@ function closeMaqueta(keepActive = false) {
   view.classList.remove("visible");
   if (!keepActive) $("unit-spots").querySelectorAll(".unit-spot.active").forEach((el) => el.classList.remove("active"));
   maquetaUnit = null;
+  emit("maqueta-close");
   setTimeout(() => !view.classList.contains("visible") && (view.hidden = true), MAQUETA_MS);
 }
 
@@ -1457,6 +1462,7 @@ function openUnitView(unitId) {
   if (plan) showUnitPlan(plan, group);
   else showUnitViewImage(images[0].image, unitLabel(unit));
   unitTour = tour ?? null;
+  fillTourLoader(unit, group);
   $("unit-menu").hidden = false;
   $("unit-menu-tour").hidden = !tour;
   $("unit-menu-plan").hidden = !plan;
@@ -1476,6 +1482,7 @@ function openUnitView(unitId) {
   const msg = `Hola! Me interesa el ${unitLabel(unit).replace(" · ", " ")} de ${PROJECT.name}.`;
   $("unit-view-wa").href = `https://wa.me/${PROJECT.whatsapp}?text=${encodeURIComponent(msg)}`;
   $("unit-view-wa").hidden = !PROJECT.whatsapp;
+  emit("unit", { unitId });
 }
 
 // Tocar la pileta: se acerca, pasa el video de la pileta a pantalla completa y al terminar queda la imagen entera.
@@ -1592,12 +1599,91 @@ let unitTour = null;
 function setUnitMode(mode) {
   const frame = $("unit-tour-frame");
   const tour = mode === "tour" && unitTour;
-  if (tour && frame.src !== unitTour.url) frame.src = unitTour.url;
+  if (tour && frame.src !== unitTour.url) {
+    startTourLoad();
+    frame.src = unitTour.url;
+  }
   frame.hidden = !tour;
   $("unit-plan").hidden = mode !== "plan";
   $("unit-view").classList.toggle("tour-on", !!tour);
   unitMode = mode;
   setUnitMenuActive(tour ? "tour" : mode);
+  syncTourLoader();
+}
+
+// ---------- Pantalla de carga del 360° ----------
+// El visor es de otra página (D5): solo se sabe cuándo cargó su página, no cuándo terminó de bajar la imagen. Por eso
+// la pantalla queda hasta que la página carga más un margen, con un mínimo (para que no sea un parpadeo) y un máximo.
+const TOUR_MIN_MS = 4200; // desde que empieza a cargar (incluye el acercamiento a la unidad)
+const TOUR_SETTLE_MS = 2400; // después de que cargó la página del visor (que todavía arma la imagen)
+const TOUR_MAX_MS = 12000;
+let tourLoad = null; // { start, done, progress, timer }
+
+function startTourLoad() {
+  stopTourLoad();
+  const load = { start: performance.now(), done: false, progress: 0, loaded: false };
+  tourLoad = load;
+  $("tour-loader-status").textContent = "Preparando el recorrido…";
+  const finish = () => {
+    if (tourLoad !== load || load.done) return;
+    load.done = true;
+    load.progress = 1;
+    paintTourProgress();
+    $("tour-loader-status").textContent = "Listo";
+    setTimeout(syncTourLoader, 380); // que se vea la barra llena antes de irse
+  };
+  $("unit-tour-frame").onload = () => {
+    if (tourLoad !== load) return;
+    load.loaded = true;
+    $("tour-loader-status").textContent = "Cargando imágenes…";
+    setTimeout(finish, Math.max(TOUR_SETTLE_MS, TOUR_MIN_MS - (performance.now() - load.start)));
+  };
+  load.max = setTimeout(finish, TOUR_MAX_MS);
+  // Barra: avanza rápido al principio y cada vez más lento, sin llegar al final hasta que carga.
+  load.timer = setInterval(() => {
+    if (load.done) return clearInterval(load.timer);
+    const ceiling = load.loaded ? 0.96 : 0.82;
+    load.progress += (ceiling - load.progress) * (load.loaded ? 0.09 : 0.035);
+    paintTourProgress();
+  }, 60);
+  paintTourProgress();
+}
+
+function stopTourLoad() {
+  if (!tourLoad) return;
+  clearInterval(tourLoad.timer);
+  clearTimeout(tourLoad.max);
+  tourLoad = null;
+}
+
+function paintTourProgress() {
+  $("tour-loader-bar").style.setProperty("--p", (tourLoad?.progress ?? 0).toFixed(3));
+}
+
+// Se ve solo con el 360° en pantalla y mientras no terminó de cargar; se va con un fundido.
+function syncTourLoader() {
+  const el = $("tour-loader");
+  const show = unitMode === "tour" && !!unitTour && !!tourLoad && !tourLoad.done;
+  if (show) {
+    clearTimeout(el._hide);
+    el.hidden = false;
+    void el.offsetWidth;
+    el.classList.add("visible");
+  } else if (!el.hidden) {
+    el.classList.remove("visible");
+    clearTimeout(el._hide);
+    el._hide = setTimeout(() => !el.classList.contains("visible") && (el.hidden = true), 700);
+  }
+}
+
+// Fondo y título de la pantalla de carga: el render de la tipología, desenfocado.
+function fillTourLoader(unit, group) {
+  const images = sitePlan.renders[group]?.images ?? [];
+  const first = images.map((it) => it.image ?? it.styles?.[0]?.image).find(Boolean);
+  $("tour-loader-bg").style.backgroundImage = first ? `url("${first}")` : "";
+  $("tour-loader-title").textContent = unitLabel(unit);
+  const touch = matchMedia("(pointer: coarse)").matches;
+  $("tour-tip-drag").textContent = touch ? "Deslizá el dedo para mirar alrededor" : "Arrastrá con el mouse para mirar alrededor";
 }
 
 let unitMode = "media";
@@ -1650,6 +1736,7 @@ function closeUnitView() {
   const view = $("unit-view");
   view.classList.remove("visible");
   $("unit-menu").hidden = true;
+  emit("unit-close");
   $("unit-view-video").pause();
   setTimeout(() => {
     view.hidden = true;
@@ -1659,6 +1746,7 @@ function closeUnitView() {
     openUnitId = null;
     unitViewOpen = false;
     unitTour = null;
+    stopTourLoad();
     $("unit-tour-frame").removeAttribute("src");
     setUnitMode("media");
   }, UNIT_FADE_MS);
@@ -1680,6 +1768,8 @@ function showPlanView(show, { force = false, holdMs = 0 } = {}) {
     setTimeout(() => planViewOn || (view.hidden = true), 800);
   }
   view.classList.toggle("visible", show);
+  setTopbarMenu(!show); // en la implantación los botones de arriba se guardan
+  emit("plan", { show });
 }
 
 // Al pasar del mapa a la vista a pantalla completa, la imagen arranca exactamente donde y del tamaño en que se ve en
@@ -1981,13 +2071,35 @@ const NEARBY_CATEGORIES = {
   movilidad: { label: "Movilidad", color: "#7a4fb0", icon: "M6 4h12a2 2 0 012 2v10H4V6a2 2 0 012-2zm-2 8h16M7 19v1m10-1v1M7.5 15.5h.01M16.5 15.5h.01" },
   ciudad: { label: "En auto", color: "#35506e", icon: "M3 13l2-5a2 2 0 012-1h10a2 2 0 012 1l2 5v5H3zM3 13h18M7 16h.01M17 16h.01" },
 };
+// Lugares de la ciudad: mismo color, pero el ícono según qué son (por la descripción).
+const CITY_ICONS = [
+  [/shopping|comercial/i, NEARBY_CATEGORIES.compras.icon],
+  [/universi/i, NEARBY_CATEGORIES.educacion.icon],
+  [/parque/i, NEARBY_CATEGORIES.verde.icon],
+  [/terminal/i, NEARBY_CATEGORIES.movilidad.icon],
+  [/aeropuerto/i, "M3 14l7-2V6.5a2 2 0 014 0V12l7 2v2l-7-1v3.5l2 1.5v1.5l-4-1-4 1V20l2-1.5V15l-7 1z"],
+  [/centro/i, "M5 21V8l7-5 7 5v13M9 21v-6h6v6"],
+];
+const placeIcon = (p) => (p.category === "ciudad" ? CITY_ICONS.find(([re]) => re.test(p.desc))?.[1] : null) ?? NEARBY_CATEGORIES[p.category].icon;
+
 const WALK_M_PER_MIN = 80;
 // Círculos alrededor del lote que muestran la cercanía sin leer distancias.
 const WALK_RINGS = [{ m: 400, label: "5 min a pie" }, { m: 800, label: "10 min a pie" }];
-const NEARBY_VIEW = { pitch: 45, bearing: -20 };
-const CITY_VIEW = { pitch: 30, bearing: -10 };
+const NEARBY_VIEW = { pitch: 38, bearing: -20, maxZoom: 16.9 };
+const CITY_VIEW = { pitch: 28, bearing: -10, maxZoom: 15 };
+const FOCUS_VIEW = { pitch: 40, bearing: -20, maxZoom: 17.4 };
+// Mientras se ven los alrededores el satélite se apaga un poco, así resaltan los lugares.
+const SAT_DIM = { "raster-brightness-max": 0.7, "raster-saturation": -0.4, "raster-contrast": 0.06 };
+const SAT_DEFAULT = { "raster-brightness-max": 1, "raster-saturation": 0, "raster-contrast": 0 };
+// Todo se dibuja dentro del mapa (capas, no elementos de la página): así queda pegado al suelo al arrastrar, sin
+// retraso ni "flotar" con el relieve.
+const NEARBY_LAYERS = [
+  "nearby-rings-fill", "nearby-ring-near", "nearby-ring-far", "nearby-route-casing", "nearby-route",
+  "nearby-lot-pulse", "nearby-ring-labels", "nearby-poi", "nearby-poi-on", "nearby-card", "nearby-lot",
+];
+const ICON_DPR = 2; // las imágenes de los íconos se dibujan al doble, para que se vean nítidas
 
-let nearby = null; // { places, markers, ringLabels, lotMarker, category, active }
+let nearby = null; // { places, category, active, hover, pulse }
 
 const iconSvg = (path) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`;
@@ -1997,17 +2109,17 @@ function formatDistance(m) {
 }
 
 const isCity = (p) => p.category === "ciudad";
-const placeTime = (p) =>
-  isCity(p) ? `≈ ${p.driveMin} min en auto` : `${Math.max(1, Math.round(p.distance / WALK_M_PER_MIN))} min a pie`;
+const walkMin = (p) => Math.max(1, Math.round(p.distance / WALK_M_PER_MIN));
+const placeTime = (p) => (isCity(p) ? `≈ ${p.driveMin} min en auto` : `${walkMin(p)} min a pie`);
 
 // Sale de la implantación al mapa y muestra los lugares cercanos.
-function openNearby() {
+async function openNearby() {
   if (!nearby) {
     const places = [...NEARBY.walk, ...NEARBY.city.map((p) => ({ ...p, category: "ciudad" }))].map((p, i) => ({ ...p, id: i }));
-    nearby = { places, markers: new Map(), ringLabels: [], category: "todos", active: null };
-    initNearbyMap(places);
+    nearby = { places, category: "todos", active: null, hover: null, pulse: null };
     renderNearbySummary();
     renderNearbyCats();
+    await initNearbyMap(places);
   }
   if (planViewOn) showPlanView(false);
   $("nearby-btn").hidden = true;
@@ -2036,60 +2148,321 @@ function ringCoords(center, m, steps = 72) {
   });
 }
 
-// Marcadores de los lugares, el del lote, los círculos de 5 y 10 minutos y la línea punteada al lugar elegido.
-function initNearbyMap(places) {
+// Punto a `m` metros del lote en la dirección `bearing` (grados desde el norte).
+function ringPoint(m, bearing) {
+  const [lng, lat] = sitePlan.center;
+  const a = (bearing * Math.PI) / 180;
+  return [lng + (m / (111320 * Math.cos((lat * Math.PI) / 180))) * Math.sin(a), lat + (m / 110540) * Math.cos(a)];
+}
+
+// ---------- Imágenes de los íconos (dibujadas en un canvas) ----------
+
+function iconCanvas(w, h) {
+  const c = document.createElement("canvas");
+  c.width = Math.ceil(w * ICON_DPR);
+  c.height = Math.ceil(h * ICON_DPR);
+  const g = c.getContext("2d");
+  g.scale(ICON_DPR, ICON_DPR);
+  return [c, g];
+}
+const imageOf = ([c, g]) => g.getImageData(0, 0, c.width, c.height);
+const addIcon = (id, canvas) => (map.hasImage(id) ? map.updateImage(id, imageOf(canvas)) : map.addImage(id, imageOf(canvas), { pixelRatio: ICON_DPR }));
+
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+function drawSvgPath(g, path, x, y, size, color, width = 2.2) {
+  g.save();
+  g.translate(x, y);
+  g.scale(size / 24, size / 24);
+  g.strokeStyle = color;
+  g.lineWidth = width;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.stroke(new Path2D(path));
+  g.restore();
+}
+
+// Punto de un lugar: círculo de su color con borde blanco y el ícono. `on`: más grande y con aro dorado.
+function poiImage(color, path, on = false) {
+  const r = on ? 18 : 14;
+  const s = r * 2 + 14; // lugar para la sombra
+  const canvas = iconCanvas(s, s);
+  const g = canvas[1];
+  const c = s / 2;
+  g.shadowColor = "rgba(0, 0, 0, .45)";
+  g.shadowBlur = 8;
+  g.shadowOffsetY = 2;
+  g.beginPath();
+  g.arc(c, c, r, 0, Math.PI * 2);
+  g.fillStyle = on ? "#f3c76a" : "#fff";
+  g.fill();
+  g.shadowColor = "transparent";
+  g.beginPath();
+  g.arc(c, c, r - (on ? 3.5 : 2.2), 0, Math.PI * 2);
+  g.fillStyle = color;
+  g.fill();
+  const icon = on ? 19 : 15;
+  drawSvgPath(g, path, c - icon / 2, c - icon / 2, icon, "#fff", on ? 2.3 : 2.4);
+  return canvas;
+}
+
+// Pin del proyecto: píldora dorada con casa y nombre, y una flecha que apunta al lote.
+function lotImage() {
+  const font = "700 14px Inter, system-ui, sans-serif";
+  const [, m] = iconCanvas(1, 1);
+  m.font = font;
+  const tw = Math.ceil(m.measureText(PROJECT.name).width);
+  const pad = 10;
+  const w = tw + 52;
+  const h = 34;
+  const canvas = iconCanvas(w + pad * 2, h + 9 + pad * 2);
+  const g = canvas[1];
+  g.translate(pad, pad);
+  g.shadowColor = "rgba(0, 0, 0, .45)";
+  g.shadowBlur = 12;
+  g.shadowOffsetY = 4;
+  roundRect(g, 0, 0, w, h, h / 2);
+  g.fillStyle = "#fff";
+  g.fill();
+  g.shadowColor = "transparent";
+  g.beginPath();
+  g.moveTo(w / 2 - 8, h - 2);
+  g.lineTo(w / 2, h + 8);
+  g.lineTo(w / 2 + 8, h - 2);
+  g.fill();
+  roundRect(g, 2, 2, w - 4, h - 4, (h - 4) / 2);
+  g.fillStyle = "#c08a2d";
+  g.fill();
+  g.beginPath();
+  g.moveTo(w / 2 - 6, h - 3);
+  g.lineTo(w / 2, h + 5);
+  g.lineTo(w / 2 + 6, h - 3);
+  g.fill();
+  drawSvgPath(g, "M4 11l8-7 8 7M6 9.5V20h12V9.5M10 20v-5h4v5", 12, 9, 16, "#fff", 2.2);
+  g.fillStyle = "#fff";
+  g.font = font;
+  g.textBaseline = "middle";
+  g.fillText(PROJECT.name, 34, h / 2 + 1);
+  return canvas;
+}
+
+// Cartel de los círculos: píldora oscura con borde dorado.
+function ringLabelImage(text) {
+  const font = "600 12px Inter, system-ui, sans-serif";
+  const [, m] = iconCanvas(1, 1);
+  m.font = font;
+  const w = Math.ceil(m.measureText(text).width) + 22;
+  const h = 24;
+  const canvas = iconCanvas(w + 4, h + 4);
+  const g = canvas[1];
+  roundRect(g, 2, 2, w, h, h / 2);
+  g.fillStyle = "rgba(11, 15, 13, .78)";
+  g.fill();
+  g.strokeStyle = "rgba(243, 199, 106, .6)";
+  g.lineWidth = 1;
+  g.stroke();
+  g.fillStyle = "#fff";
+  g.font = font;
+  g.textBaseline = "middle";
+  g.fillText(text, 13, h / 2 + 2.5);
+  return canvas;
+}
+
+// Tarjeta sobre el punto (al pasar el mouse o al elegirlo): nombre y, debajo, qué es y a cuánto queda.
+function cardImage(p) {
+  const fontA = "700 13px Inter, system-ui, sans-serif";
+  const fontB = "500 11.5px Inter, system-ui, sans-serif";
+  const sub = `${p.desc} · ${placeTime(p)}`;
+  const [, m] = iconCanvas(1, 1);
+  m.font = fontA;
+  const wa = m.measureText(p.name).width;
+  m.font = fontB;
+  const wb = m.measureText(sub).width;
+  const pad = 10;
+  const w = Math.ceil(Math.max(wa, wb)) + 26;
+  const h = 46;
+  const canvas = iconCanvas(w + pad * 2, h + 8 + pad * 2);
+  const g = canvas[1];
+  g.translate(pad, pad);
+  g.shadowColor = "rgba(0, 0, 0, .35)";
+  g.shadowBlur = 14;
+  g.shadowOffsetY = 4;
+  roundRect(g, 0, 0, w, h, 10);
+  g.fillStyle = "#fff";
+  g.fill();
+  g.shadowColor = "transparent";
+  g.beginPath();
+  g.moveTo(w / 2 - 7, h - 1);
+  g.lineTo(w / 2, h + 7);
+  g.lineTo(w / 2 + 7, h - 1);
+  g.fill();
+  g.save(); // franja del color de la categoría a la izquierda, respetando las esquinas redondeadas
+  roundRect(g, 0, 0, w, h, 10);
+  g.clip();
+  g.fillStyle = NEARBY_CATEGORIES[p.category].color;
+  g.fillRect(0, 0, 4, h);
+  g.restore();
+  g.textBaseline = "alphabetic";
+  g.fillStyle = "#1f1f1f";
+  g.font = fontA;
+  g.fillText(p.name, 14, 20);
+  g.fillStyle = "#6b6b6b";
+  g.font = fontB;
+  g.fillText(sub, 14, 36);
+  return canvas;
+}
+
+// ---------- Capas del mapa ----------
+
+async function initNearbyMap(places) {
+  // Los textos de los íconos usan Inter: se espera a que esté cargada antes de dibujarlos.
+  await Promise.all([document.fonts.load("700 14px Inter"), document.fonts.load("600 12px Inter"), document.fonts.load("500 12px Inter")]).catch(() => {});
+  const fc = (features) => ({ type: "FeatureCollection", features });
+  const point = (coordinates, properties = {}) => ({ type: "Feature", properties, geometry: { type: "Point", coordinates } });
+
+  // Círculos de 5 y 10 minutos: el cercano relleno y con línea continua, el lejano punteado.
   map.addSource("nearby-rings", {
     type: "geojson",
-    data: {
-      type: "FeatureCollection",
-      features: WALK_RINGS.map((r) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: ringCoords(sitePlan.center, r.m) } })),
-    },
+    data: fc(WALK_RINGS.map((r, i) => ({ type: "Feature", properties: { i }, geometry: { type: "Polygon", coordinates: [ringCoords(sitePlan.center, r.m)] } }))),
   });
   map.addLayer({
-    id: "nearby-rings", type: "line", source: "nearby-rings", layout: { visibility: "none" },
-    paint: { "line-color": "#fff", "line-width": 1.6, "line-opacity": 0.75, "line-dasharray": [2, 2] },
+    id: "nearby-rings-fill", type: "fill", source: "nearby-rings", layout: { visibility: "none" },
+    paint: { "fill-color": "#f3c76a", "fill-opacity": ["match", ["get", "i"], 0, 0.1, 0.04] },
   });
-  for (const r of WALK_RINGS) {
-    const el = document.createElement("div");
-    el.className = "ring-label";
-    el.textContent = r.label;
-    const north = ringCoords(sitePlan.center, r.m, 4)[0];
-    nearby.ringLabels.push(new maplibregl.Marker({ element: el, opacity: "1", opacityWhenCovered: "1" }).setLngLat(north));
-  }
-  map.addSource("nearby-route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({
+    id: "nearby-ring-near", type: "line", source: "nearby-rings", filter: ["==", ["get", "i"], 0], layout: { visibility: "none" },
+    paint: { "line-color": "#f3c76a", "line-width": 2, "line-opacity": 0.95 },
+  });
+  map.addLayer({
+    id: "nearby-ring-far", type: "line", source: "nearby-rings", filter: ["==", ["get", "i"], 1], layout: { visibility: "none" },
+    paint: { "line-color": "#ffffff", "line-width": 1.6, "line-opacity": 0.7, "line-dasharray": [3, 3] },
+  });
+
+  // Línea dorada del lote al lugar elegido, con un borde oscuro para que se lea sobre el satélite.
+  map.addSource("nearby-route", { type: "geojson", data: fc([]) });
+  map.addLayer({
+    id: "nearby-route-casing", type: "line", source: "nearby-route", layout: { "line-cap": "round", visibility: "none" },
+    paint: { "line-color": "#0b0f0d", "line-width": 6, "line-opacity": 0.35 },
+  });
   map.addLayer({
     id: "nearby-route", type: "line", source: "nearby-route", layout: { "line-cap": "round", visibility: "none" },
-    paint: { "line-color": "#fff", "line-width": 3, "line-dasharray": [1, 2] },
+    paint: { "line-color": "#f3c76a", "line-width": 3, "line-dasharray": [0.6, 1.8] },
   });
+
+  // Pulso dorado en el suelo, debajo del pin del proyecto (se anima mientras se ven los alrededores).
+  map.addSource("nearby-lot", { type: "geojson", data: fc([point(sitePlan.center)]) });
+  map.addLayer({
+    id: "nearby-lot-pulse", type: "circle", source: "nearby-lot", layout: { visibility: "none" },
+    paint: {
+      "circle-radius": 8, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": "#f3c76a", "circle-stroke-width": 2,
+      "circle-stroke-opacity": 0.9, "circle-pitch-alignment": "map",
+    },
+  });
+
+  // Carteles de los círculos, del lado que queda arriba en la pantalla.
+  WALK_RINGS.forEach((r, i) => addIcon(`ring-label-${i}`, ringLabelImage(r.label)));
+  map.addSource("nearby-ring-labels", {
+    type: "geojson",
+    data: fc(WALK_RINGS.map((r, i) => point(ringPoint(r.m, NEARBY_VIEW.bearing), { img: `ring-label-${i}` }))),
+  });
+  map.addLayer({
+    id: "nearby-ring-labels", type: "symbol", source: "nearby-ring-labels",
+    layout: { visibility: "none", "icon-image": ["get", "img"], "icon-allow-overlap": true, "icon-ignore-placement": true },
+  });
+
+  // Lugares: un ícono por lugar (en reposo y elegido), según su categoría o, en la ciudad, según qué es.
+  const icons = new Map();
   for (const p of places) {
-    const cat = NEARBY_CATEGORIES[p.category];
-    const el = document.createElement("button");
-    el.className = "poi-pin";
-    el.style.setProperty("--cat", cat.color);
-    el.setAttribute("aria-label", p.name);
-    el.innerHTML = `${iconSvg(cat.icon)}<span class="poi-label"><strong></strong><small></small></span>`;
-    el.querySelector(".poi-label strong").textContent = p.name;
-    el.querySelector(".poi-label small").textContent = `${p.desc} · ${placeTime(p)}`;
-    el.addEventListener("click", (e) => {
-      e.stopPropagation();
-      focusNearby(p.id);
-    });
-    const marker = new maplibregl.Marker({ element: el, opacity: "1", opacityWhenCovered: "1" }).setLngLat(p.at);
-    nearby.markers.set(p.id, marker);
+    const key = `poi-${p.category}-${placeIcon(p) === NEARBY_CATEGORIES[p.category].icon ? "base" : p.id}`;
+    if (!icons.has(key)) {
+      icons.set(key, true);
+      addIcon(key, poiImage(NEARBY_CATEGORIES[p.category].color, placeIcon(p)));
+      addIcon(`${key}-on`, poiImage(NEARBY_CATEGORIES[p.category].color, placeIcon(p), true));
+    }
+    p.icon = key;
   }
-  const lot = document.createElement("div");
-  lot.className = "lot-pin";
-  lot.textContent = PROJECT.name;
-  nearby.lotMarker = new maplibregl.Marker({ element: lot, anchor: "bottom", opacity: "1", opacityWhenCovered: "1" }).setLngLat(sitePlan.center);
+  map.addSource("nearby-poi", {
+    type: "geojson",
+    data: fc(places.map((p) => point(p.at, { id: p.id, icon: p.icon, d: p.distance }))),
+  });
+  const symbol = { "icon-allow-overlap": true, "icon-ignore-placement": true, visibility: "none" };
+  map.addLayer({
+    id: "nearby-poi", type: "symbol", source: "nearby-poi",
+    layout: { ...symbol, "icon-image": ["get", "icon"], "symbol-sort-key": ["-", 0, ["get", "d"]] },
+  });
+  map.addLayer({
+    id: "nearby-poi-on", type: "symbol", source: "nearby-poi", filter: ["in", ["get", "id"], ["literal", []]],
+    layout: { ...symbol, "icon-image": ["concat", ["get", "icon"], "-on"] },
+  });
+  // Tarjeta del lugar señalado (una sola): su imagen se dibuja cuando hace falta.
+  map.addSource("nearby-card", { type: "geojson", data: fc([]) });
+  map.addLayer({
+    id: "nearby-card", type: "symbol", source: "nearby-card",
+    layout: { ...symbol, "icon-image": ["get", "img"], "icon-anchor": "bottom", "icon-offset": [0, -16] },
+  });
+  // Pin del proyecto, arriba de todo.
+  addIcon("nearby-lot-pin", lotImage());
+  map.addLayer({
+    id: "nearby-lot", type: "symbol", source: "nearby-lot",
+    layout: { ...symbol, "icon-image": "nearby-lot-pin", "icon-anchor": "bottom", "icon-offset": [0, 6] },
+  });
+
+  // Mouse y toques sobre los lugares.
+  map.on("mouseenter", "nearby-poi", () => (map.getCanvas().style.cursor = "pointer"));
+  map.on("mouseleave", "nearby-poi", () => {
+    map.getCanvas().style.cursor = "";
+    setNearbyHover(null);
+  });
+  map.on("mousemove", "nearby-poi", (e) => setNearbyHover(e.features[0]?.properties.id ?? null));
+  map.on("click", "nearby-poi", (e) => {
+    const id = e.features[0]?.properties.id;
+    if (id !== undefined) focusNearby(id);
+  });
 }
 
 function setNearbyLayers(show) {
-  if (!nearby) return;
-  for (const m of [...nearby.markers.values(), ...nearby.ringLabels, nearby.lotMarker]) show ? m.addTo(map) : m.remove();
+  if (!nearby || !map.getLayer("nearby-poi")) return;
   streetLabels.forEach(({ marker }) => (marker.getElement().style.visibility = show ? "hidden" : "")); // se pisaban con el lote
-  map.setLayoutProperty("nearby-route", "visibility", show ? "visible" : "none");
-  map.setLayoutProperty("nearby-rings", "visibility", show ? "visible" : "none");
-  if (!show) setNearbyActive(null);
+  NEARBY_LAYERS.forEach((id) => map.setLayoutProperty(id, "visibility", show ? "visible" : "none"));
+  // Las calles marcadas de la intro competían con los círculos: se esconden mientras tanto.
+  ["streets-glow", "streets-line"].forEach((id) => map.getLayer(id) && map.setLayoutProperty(id, "visibility", show ? "none" : "visible"));
+  for (const [prop, value] of Object.entries(show ? SAT_DIM : SAT_DEFAULT)) map.setPaintProperty("satellite", prop, value);
+  if (show) startLotPulse();
+  else {
+    cancelAnimationFrame(nearby.pulse);
+    setNearbyActive(null);
+    setNearbyHover(null);
+  }
+}
+
+function startLotPulse() {
+  cancelAnimationFrame(nearby.pulse);
+  const t0 = performance.now();
+  const step = (now) => {
+    const k = ((now - t0) % 2200) / 2200;
+    map.setPaintProperty("nearby-lot-pulse", "circle-radius", 6 + k * 22);
+    map.setPaintProperty("nearby-lot-pulse", "circle-stroke-opacity", 0.9 * (1 - k));
+    nearby.pulse = requestAnimationFrame(step);
+  };
+  nearby.pulse = requestAnimationFrame(step);
+}
+
+// Encuadra `points` (y el lote) en lo que deja libre el panel. Se calcula mirando desde arriba y después se inclina:
+// con la cámara inclinada, MapLibre aleja de más para que entre todo el rectángulo.
+function frameNearby(points, view, duration = 1400) {
+  const bounds = new maplibregl.LngLatBounds(sitePlan.center, sitePlan.center);
+  points.forEach((p) => bounds.extend(p));
+  const cam = map.cameraForBounds(bounds, { padding: nearbyPadding(), bearing: view.bearing, pitch: 0 });
+  if (!cam) return;
+  map.easeTo({ center: cam.center, zoom: Math.min(view.maxZoom, cam.zoom), bearing: view.bearing, pitch: view.pitch, duration, essential: true });
 }
 
 // Resumen de arriba: lo más importante a menos de 10 minutos, de un vistazo. Cada ítem lleva a su categoría.
@@ -2105,8 +2478,11 @@ function renderNearbySummary() {
 
 function renderNearbyCats() {
   const counts = (c) => nearby.places.filter((p) => (c === "todos" ? !isCity(p) : p.category === c)).length;
-  const walkIcon = "M13 4a1 1 0 11-2 0 1 1 0 012 0zM10 21l2-6 2 2v4m-4-11l2-2 3 3 2 1M10 10l-2 4";
-  const cats = [["todos", { label: "Todo a pie", color: "#1f1f1f", icon: walkIcon }], ...Object.entries(NEARBY_CATEGORIES)];
+  const allIcon = "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z";
+  const cats = [["todos", { label: "Todo", color: "#1f1f1f", icon: allIcon }], ...Object.entries(NEARBY_CATEGORIES).filter(([id]) => id !== "ciudad")];
+  $("nearby-modes").querySelectorAll("[data-mode]").forEach((el) =>
+    el.addEventListener("click", () => setNearbyCategory(el.dataset.mode === "city" ? "ciudad" : "todos"))
+  );
   $("nearby-cats").innerHTML = cats
     .filter(([id]) => counts(id))
     .map(([id, c]) => `<button class="nearby-cat" data-cat="${id}" style="--cat:${c.color}">${iconSvg(c.icon)}${c.label}</button>`)
@@ -2119,17 +2495,25 @@ function renderNearbyCats() {
 function setNearbyCategory(category) {
   nearby.category = category;
   setNearbyActive(null);
+  const city = category === "ciudad";
+  $("nearby-modes").querySelectorAll("[data-mode]").forEach((el) => el.setAttribute("aria-selected", String((el.dataset.mode === "city") === city)));
+  $("nearby-summary").hidden = city;
+  $("nearby-cats").hidden = city;
   $("nearby-cats").querySelectorAll("[data-cat]").forEach((el) => el.classList.toggle("active", el.dataset.cat === category));
   $("nearby-summary").querySelectorAll("[data-cat]").forEach((el) => el.classList.toggle("active", el.dataset.cat === category));
   const shown = nearby.places
     .filter((p) => (category === "todos" ? !isCity(p) : p.category === category))
     .sort((a, b) => a.distance - b.distance);
-  for (const [id, m] of nearby.markers) m.getElement().classList.toggle("off", !shown.some((p) => p.id === id));
+  nearby.shown = new Set(shown.map((p) => p.id));
+  map.setFilter("nearby-poi", ["in", ["get", "id"], ["literal", [...nearby.shown]]]);
+  ["nearby-ring-labels", "nearby-rings-fill", "nearby-ring-near", "nearby-ring-far"].forEach((id) =>
+    map.setLayoutProperty(id, "visibility", city ? "none" : "visible")
+  );
   $("nearby-list").innerHTML = shown
     .map((p) => {
       const cat = NEARBY_CATEGORIES[p.category];
       return `<li><button class="nearby-item" data-place="${p.id}">
-        <span class="nearby-icon" style="--cat:${cat.color}">${iconSvg(cat.icon)}</span>
+        <span class="nearby-icon" style="--cat:${cat.color}">${iconSvg(placeIcon(p))}</span>
         <span class="nearby-text"><strong></strong><small></small></span>
         <span class="nearby-dist">${formatDistance(p.distance)}<small>${placeTime(p)}</small></span>
       </button></li>`;
@@ -2140,51 +2524,131 @@ function setNearbyCategory(category) {
     el.querySelector("strong").textContent = p.name; // como texto, no HTML
     el.querySelector(".nearby-text small").textContent = p.desc;
     el.addEventListener("click", () => focusNearby(p.id));
-    el.addEventListener("mouseenter", () => nearby.markers.get(p.id).getElement().classList.add("active"));
-    el.addEventListener("mouseleave", () => nearby.active !== p.id && nearby.markers.get(p.id).getElement().classList.remove("active"));
+    el.addEventListener("mouseenter", () => setNearbyHover(p.id));
+    el.addEventListener("mouseleave", () => setNearbyHover(null));
   });
-  // Encuadre: a pie, el círculo de 10 minutos (y lo que quede fuera de él); en auto, la ciudad.
-  const bounds = new maplibregl.LngLatBounds(sitePlan.center, sitePlan.center);
-  if (category !== "ciudad") ringCoords(sitePlan.center, WALK_RINGS[WALK_RINGS.length - 1].m, 8).forEach((c) => bounds.extend(c));
-  shown.forEach((p) => bounds.extend(p.at));
-  const view = category === "ciudad" ? CITY_VIEW : NEARBY_VIEW;
-  map.fitBounds(bounds, { padding: nearbyPadding(), maxZoom: 17, ...view, duration: 1400, essential: true });
+  // Encuadre: a pie, los lugares y el círculo de 5 minutos (el de 10 puede quedar cortado); en auto, la ciudad.
+  const points = shown.map((p) => p.at);
+  if (!city) points.push(...ringCoords(sitePlan.center, WALK_RINGS[0].m, 8));
+  frameNearby(points, city ? CITY_VIEW : NEARBY_VIEW);
 }
 
-// Margen para encuadrar sin que el panel tape los lugares.
+// Margen para encuadrar sin que el panel (ni la ficha del lugar) tapen los lugares.
 function nearbyPadding() {
   const panel = $("nearby-panel");
+  const card = $("place-card");
   return isPhone()
     ? { top: 80, bottom: panel.offsetHeight + 30, left: 40, right: 40 }
-    : { top: 90, bottom: 60, left: panel.offsetWidth + 60, right: 70 };
+    : { top: 110, bottom: 70, left: panel.offsetWidth + 70, right: card.hidden ? 90 : card.offsetWidth + 60 };
 }
 
-// Lleva la cámara al lugar, lo resalta y lo une con el lote.
+// Lleva la cámara al lugar, lo resalta, lo une con el lote y abre su ficha.
 function focusNearby(id) {
   const p = nearby.places[id];
   setNearbyActive(id);
+  showPlaceCard(p);
   $("nearby-list").querySelector(`[data-place="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  const bounds = new maplibregl.LngLatBounds(sitePlan.center, sitePlan.center).extend(p.at);
-  map.fitBounds(bounds, { padding: nearbyPadding(), maxZoom: 17.5, ...(isCity(p) ? CITY_VIEW : NEARBY_VIEW), duration: 1200, essential: true });
+  frameNearby([p.at], isCity(p) ? { ...CITY_VIEW, maxZoom: 16 } : FOCUS_VIEW, 1200);
+}
+
+// Íconos resaltados (el elegido y el que está bajo el mouse) y la tarjeta sobre el punto.
+function paintNearbyHighlight() {
+  if (!map.getLayer("nearby-poi-on")) return;
+  const ids = [nearby.active, nearby.hover].filter((id) => id !== null);
+  map.setFilter("nearby-poi-on", ["in", ["get", "id"], ["literal", ids]]);
+  const id = nearby.hover ?? nearby.active;
+  const features = [];
+  if (id !== null) {
+    const p = nearby.places[id];
+    const img = `nearby-card-${id}`;
+    if (!map.hasImage(img)) addIcon(img, cardImage(p));
+    features.push({ type: "Feature", properties: { img }, geometry: { type: "Point", coordinates: p.at } });
+  }
+  map.getSource("nearby-card").setData({ type: "FeatureCollection", features });
+  $("nearby-list").querySelectorAll(".nearby-item").forEach((el) => el.classList.toggle("hover", +el.dataset.place === nearby.hover));
+}
+
+function setNearbyHover(id) {
+  if (!nearby || nearby.hover === id) return;
+  nearby.hover = id;
+  paintNearbyHighlight();
 }
 
 function setNearbyActive(id) {
   if (!nearby) return;
-  if (nearby.active !== null) nearby.markers.get(nearby.active)?.getElement().classList.remove("active");
-  $("nearby-list").querySelectorAll(".nearby-item.active").forEach((el) => el.classList.remove("active"));
   nearby.active = id;
+  $("nearby-list").querySelectorAll(".nearby-item").forEach((el) => el.classList.toggle("active", +el.dataset.place === id));
   const features = [];
-  if (id !== null) {
-    nearby.markers.get(id).getElement().classList.add("active");
-    $("nearby-list").querySelector(`[data-place="${id}"]`)?.classList.add("active");
-    features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [sitePlan.center, nearby.places[id].at] } });
-  }
+  if (id !== null) features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [sitePlan.center, nearby.places[id].at] } });
+  else hidePlaceCard();
   map.getSource("nearby-route")?.setData({ type: "FeatureCollection", features });
+  paintNearbyHighlight();
+}
+
+// ---------- Ficha del lugar: foto (si hay), datos y cómo llegar ----------
+
+function showPlaceCard(p) {
+  const cat = NEARBY_CATEGORIES[p.category];
+  const card = $("place-card");
+  card.style.setProperty("--cat", cat.color);
+  const media = $("place-media");
+  media.classList.toggle("has-photo", !!p.photo);
+  media.innerHTML = p.photo
+    ? `<img src="${p.photo}" alt="" /><span class="place-zoom">${iconSvg("M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7")}</span>`
+    : `<span class="place-ph">${iconSvg(placeIcon(p))}</span>`;
+  media.querySelector("img")?.setAttribute("alt", p.name);
+  media.onclick = p.photo ? () => openGallery(p.name, [{ label: p.name, image: p.photo, fit: "contain" }]) : null;
+  $("place-cat").textContent = isCity(p) ? "En la ciudad" : cat.label;
+  $("place-name").textContent = p.name;
+  $("place-desc").textContent = p.desc;
+  $("place-dist").textContent = formatDistance(p.distance);
+  $("place-time").textContent = isCity(p) ? `≈ ${p.driveMin} min` : `${walkMin(p)} min`;
+  $("place-mode").textContent = isCity(p) ? "en auto" : "a pie";
+  const [olng, olat] = sitePlan.center;
+  const [dlng, dlat] = p.at;
+  $("place-route").href =
+    `https://www.google.com/maps/dir/?api=1&origin=${olat},${olng}&destination=${dlat},${dlng}&travelmode=${isCity(p) ? "driving" : "walking"}`;
+  const wasHidden = card.hidden;
+  card.hidden = false;
+  if (wasHidden) {
+    void card.offsetWidth;
+    card.classList.add("visible");
+  } else {
+    card.classList.remove("swap");
+    void card.offsetWidth;
+    card.classList.add("swap"); // al pasar de un lugar a otro, la ficha cambia con un fundido corto
+  }
+}
+
+function hidePlaceCard() {
+  const card = $("place-card");
+  if (card.hidden) return;
+  card.classList.remove("visible");
+  setTimeout(() => !card.classList.contains("visible") && (card.hidden = true), 300);
 }
 
 // ---------- UI general ----------
 
+// Menú de arriba: abierto o guardado detrás de "Menú". Al elegir una opción se vuelve a guardar.
+function setTopbarMenu(open) {
+  $("topbar").classList.toggle("collapsed", !open);
+  $("topbar-toggle").setAttribute("aria-expanded", String(open));
+}
+
+function initTopbarMenu() {
+  $("topbar-toggle").addEventListener("click", () => setTopbarMenu($("topbar").classList.contains("collapsed")));
+  $("topbar-menu").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (btn && btn.id !== "fullscreen-btn" && planViewOn) setTimeout(() => planViewOn && setTopbarMenu(false), 0);
+  });
+  // Tocando afuera (en la implantación) también se guarda.
+  document.addEventListener("pointerdown", (e) => {
+    if (planViewOn && !$("topbar").classList.contains("collapsed") && !e.target.closest("#topbar")) setTopbarMenu(false);
+  });
+}
+
 function initUi() {
+  initTopbarMenu();
   $("enter-btn").addEventListener("click", runIntro);
   $("skip-btn").addEventListener("click", skipIntro);
   $("search-btn").addEventListener("click", () => {
@@ -2206,6 +2670,7 @@ function initUi() {
   $("techplan-btn").addEventListener("click", openTechnicalPlan);
   $("nearby-btn").addEventListener("click", openNearby);
   document.querySelectorAll("[data-close-nearby]").forEach((el) => el.addEventListener("click", closeNearby));
+  document.querySelectorAll("[data-close-place]").forEach((el) => el.addEventListener("click", () => setNearbyActive(null)));
   document.querySelectorAll("[data-close-gallery]").forEach((el) => el.addEventListener("click", closeGallery));
   galleryParallax = createParallax($("gallery-frame"), () => [$("gallery-media")]);
   resetParallax(galleryParallax);

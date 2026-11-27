@@ -33,6 +33,8 @@ const PROJECT = {
   groundFloorHeight: 4.5,
   floorHeight: 3.2,
   whatsapp: "5492640000000",
+  // Edificios 3D blancos de la ciudad alrededor del lote (true para mostrarlos). Apagados: se ve solo el satélite.
+  cityBuildings: false,
 };
 
 // Implantación: render del conjunto visto desde arriba, apoyado sobre el lote. Si está, reemplaza a la torre en el
@@ -164,7 +166,7 @@ const SITE_PLAN = {
   renders: [
     {
       id: "duplex",
-      typology: "Duplex",
+      typology: "Dúplex",
       // Plano: es lo primero que se ve al abrir un duplex. Cada ambiente se toca y abre su render (`view` es la
       // posición en `images`). `box`: [izquierda, arriba, derecha, abajo] en píxeles del plano (`size`).
       // Patio y balcón no tienen render, así que no se tocan.
@@ -283,7 +285,7 @@ const TYPOLOGIES = {
 // Para sacar la directa: abrir el enlace corto en el navegador y copiar la URL a la que redirige.
 const TOURS_360 = [
   // Corto: https://share.d5render.com/user-hub/showreel/shortLink/AYHOcP
-  { id: "duplex", label: "Duplex", url: "https://showreel.d5render.com/personal-krpano?directory=https://usa.asset.d5cdn.com/tourProject/pano_roam_1780451440295_3717703/&tourId=2061989254366937089" },
+  { id: "duplex", label: "Dúplex", url: "https://showreel.d5render.com/personal-krpano?directory=https://usa.asset.d5cdn.com/tourProject/pano_roam_1780451440295_3717703/&tourId=2061989254366937089" },
   // Corto: https://share.d5render.com/user-hub/showreel/shortLink/c4QNl6
   { id: "2-dormitorios", label: "2 dormitorios", url: "https://showreel.d5render.com/personal-krpano?directory=https://usa.asset.d5cdn.com/tourProject/pano_roam_1780246621018_3717703/&tourId=2061130258235965441" },
   // Corto: https://share.d5render.com/user-hub/showreel/shortLink/GPNCvu
@@ -315,6 +317,7 @@ const UNITS = (() => {
 })();
 
 // Alrededores: lugares elegidos (no todo lo que hay en OpenStreetMap), con una descripción clara.
+// `photo` (opcional): foto del lugar para su ficha; sin ella, la ficha muestra el ícono del lugar.
 // `walk`: a pie, con distancia en línea recta desde el lote (m). `city`: lugares de la ciudad, con minutos en auto
 // estimados (distancia por calles ≈ 1,35 × la recta, a la velocidad promedio de la zona). `summary`: el resumen de
 // arriba del panel; cada ítem lleva a su categoría. Coordenadas de OpenStreetMap (tools/lugares_osm.py).

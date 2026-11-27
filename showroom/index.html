@@ -20,29 +20,28 @@
   <script src="vendor/maplibre-5.24.0/maplibre-gl.js" defer></script>
 
   <!-- ?v= obliga al navegador a bajar la versión nueva: subir el número cada vez que cambien estos archivos -->
-  <link rel="stylesheet" href="showroom.css?v=47" />
-  <script src="data.js?v=41" defer></script>
-  <script src="showroom.js?v=58" defer></script>
+  <link rel="stylesheet" href="showroom.css?v=62" />
+  <script src="data.js?v=45" defer></script>
+  <script src="showroom.js?v=71" defer></script>
+  <script src="ventas.js?v=2" defer></script>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Intro: logo + carga + Entrar -->
+  <!-- Intro: la fachada de fondo, con el título arriba para dejar el edificio a la vista; la barra de carga se
+       convierte en "Entrar". -->
   <section id="intro" class="intro">
-    <div class="intro-logo">
-      <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
-        <circle cx="60" cy="60" r="54" class="ring-bg" />
-        <circle cx="60" cy="60" r="54" class="ring-fg" id="ring-fg" />
-      </svg>
-      <div class="intro-mark">pilar de <span>diseño</span></div>
-    </div>
+    <div class="intro-mark">pilar de <span>diseño</span></div>
     <div class="intro-text">
+      <p class="intro-eyebrow">San Juan · Argentina</p>
       <h1 id="intro-name"></h1>
-      <p id="intro-tagline"></p>
+      <p id="intro-tagline" class="intro-tagline"></p>
       <ul id="intro-stats" class="intro-stats"></ul>
     </div>
-    <p id="intro-progress" class="intro-progress">0%</p>
-    <button id="enter-btn" class="enter-btn" hidden>Entrar</button>
+    <div class="intro-cta">
+      <div id="intro-progress" class="intro-progress" role="progressbar" aria-label="Cargando" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+      <button id="enter-btn" class="enter-btn" hidden>Entrar</button>
+    </div>
   </section>
 
   <!-- Pantalla del video: aparece al terminar el vuelo (el mapa desde arriba se funde en el video, que arranca desde
@@ -52,8 +51,8 @@
     <div class="hero-text">
       <h1 id="hero-name"></h1>
       <p id="hero-tagline"></p>
-      <ul id="hero-stats" class="intro-stats"></ul>
     </div>
+    <button id="hero-skip" class="pill hero-skip" type="button">Saltar video</button>
   </section>
 
   <!-- Título que aparece durante el vuelo -->
@@ -65,23 +64,30 @@
 
   <!-- Controles durante la intro -->
   <div id="intro-controls" class="intro-controls" hidden>
-    <button id="skip-btn" class="pill">Omitir intro</button>
-    <span id="countdown"></span>
+    <button id="skip-btn" class="pill">Saltar intro</button>
+    <span id="countdown" class="intro-bar" aria-hidden="true"></span>
   </div>
 
   <!-- UI del showroom -->
   <header id="topbar" class="topbar" hidden>
     <div class="brand">pilar de <span>diseño</span></div>
-    <button id="search-btn" class="glass search-btn">
-      <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      Buscar Unidades
+    <!-- En la implantación los botones quedan guardados: se despliegan con "Menú" -->
+    <div id="topbar-menu" class="topbar-menu">
+      <button id="search-btn" class="glass search-btn" aria-controls="units-panel" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Unidades
+      </button>
+      <button id="tour-btn" class="glass search-btn">Recorrido 360°</button>
+      <button id="facade-btn" class="glass search-btn" hidden>Vista exterior</button>
+      <button id="techplan-btn" class="glass search-btn" hidden>Plano técnico</button>
+      <button id="nearby-btn" class="glass search-btn" hidden>Alrededores</button>
+      <button id="view-toggle" class="glass search-btn" hidden>Ver en el mapa</button>
+      <button id="fullscreen-btn" class="glass icon-btn" aria-label="Pantalla completa">⤢</button>
+    </div>
+    <button id="topbar-toggle" class="glass topbar-toggle" aria-expanded="true" aria-controls="topbar-menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span>Menú</span>
     </button>
-    <button id="tour-btn" class="glass search-btn">Recorrido 360°</button>
-    <button id="facade-btn" class="glass search-btn" hidden>Vista exterior</button>
-    <button id="techplan-btn" class="glass search-btn" hidden>Plano técnico</button>
-    <button id="nearby-btn" class="glass search-btn" hidden>Alrededores</button>
-    <button id="view-toggle" class="glass search-btn" hidden>Ver en el mapa</button>
-    <button id="fullscreen-btn" class="glass icon-btn" aria-label="Pantalla completa">⤢</button>
   </header>
 
   <!-- Alrededores: lugares cercanos al lote, en el mapa y en una lista por categoría -->
@@ -93,11 +99,64 @@
       </div>
       <button class="close" data-close-nearby aria-label="Volver a la implantación">×</button>
     </div>
+    <div id="nearby-modes" class="units-tabs nearby-modes" role="tablist">
+      <button type="button" role="tab" data-mode="walk" aria-selected="true">A pie</button>
+      <button type="button" role="tab" data-mode="city" aria-selected="false">En auto</button>
+    </div>
     <div id="nearby-summary" class="nearby-summary"></div>
     <div id="nearby-cats" class="nearby-cats"></div>
     <ul id="nearby-list" class="nearby-list"></ul>
     <p class="nearby-note">A pie: distancia en línea recta desde el lote · En auto: tiempos estimados · Datos © OpenStreetMap</p>
   </aside>
+
+  <!-- Ficha del lugar elegido en Alrededores: foto (si hay), distancia y cómo llegar -->
+  <article id="place-card" class="place-card glass" aria-live="polite" hidden>
+    <button class="place-close" data-close-place aria-label="Cerrar">×</button>
+    <div id="place-media" class="place-media"></div>
+    <div class="place-body">
+      <p id="place-cat" class="place-cat"></p>
+      <h3 id="place-name"></h3>
+      <p id="place-desc" class="place-desc"></p>
+      <div class="place-stats">
+        <div><strong id="place-dist"></strong><span>desde Aspen IX</span></div>
+        <div><strong id="place-time"></strong><span id="place-mode"></span></div>
+      </div>
+      <a id="place-route" class="btn place-route" target="_blank" rel="noopener">Cómo llegar
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      </a>
+    </div>
+  </article>
+
+  <!-- Unidades: buscador por tipología, planta y estado, y favoritas para comparar (ventas.js) -->
+  <aside id="units-panel" class="units-panel glass" aria-label="Unidades" hidden>
+    <div class="units-head">
+      <div>
+        <p class="eyebrow dark">Aspen IX</p>
+        <h2>Unidades</h2>
+      </div>
+      <button class="close" data-close-units aria-label="Cerrar">×</button>
+    </div>
+    <div id="units-tabs" class="units-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="all" aria-selected="true">Buscar</button>
+      <button type="button" role="tab" data-tab="fav" aria-selected="false">Favoritas <span id="units-fav-count" class="units-fav-count" hidden></span></button>
+    </div>
+    <div id="units-filters" class="units-filters">
+      <div id="units-floors" class="units-floors"></div>
+      <div id="units-types" class="chips"></div>
+      <label class="toggle"><input id="units-free" type="checkbox" checked /> Solo disponibles</label>
+    </div>
+    <p id="units-count" class="units-count"></p>
+    <ul id="units-list" class="units-list"></ul>
+    <div id="units-compare-bar" class="units-compare-bar" hidden>
+      <button id="units-compare" type="button" class="btn">Comparar favoritas</button>
+    </div>
+  </aside>
+
+  <!-- Consultar: botón fijo sobre la implantación -->
+  <button id="ask-fab" class="ask-fab" type="button" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5a7.5 7.5 0 0 1-11.2 6.5L4 19.5l1.5-4.6A7.5 7.5 0 1 1 20 11.5z"/></svg>
+    <span>Consultar</span>
+  </button>
 
   <!-- Implantación a pantalla completa: al terminar la intro se sale del mapa y queda la imagen sola -->
   <div id="plan-view" class="plan-view" hidden>
@@ -128,7 +187,8 @@
       <div class="uc-head"><span id="maqueta-id" class="uc-id"></span><em id="maqueta-status" class="badge"></em></div>
       <strong id="maqueta-type" class="maqueta-type"></strong>
       <span id="maqueta-meta" class="uc-floor"></span>
-      <span class="maqueta-hint">Tocá la maqueta para entrar</span>
+      <div id="maqueta-actions" class="u-actions"></div>
+      <span class="maqueta-hint">Tocá la maqueta para entrar al recorrido</span>
     </div>
     <button id="maqueta-close" class="glass icon-btn maqueta-close" aria-label="Volver a la implantación">×</button>
   </div>
@@ -140,6 +200,24 @@
     <video id="unit-view-video" class="unit-view-media" playsinline preload="none" hidden></video>
     <!-- Recorrido 360° de la tipología: es lo primero que se ve al entrar a un departamento -->
     <iframe id="unit-tour-frame" class="unit-tour-frame" title="Recorrido 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer" allowfullscreen hidden></iframe>
+    <!-- Pantalla de carga del 360°: tapa el visor mientras baja y se funde cuando está listo -->
+    <div id="tour-loader" class="tour-loader" hidden>
+      <div id="tour-loader-bg" class="tour-loader-bg"></div>
+      <div class="tour-loader-box" role="status" aria-live="polite">
+        <span class="tour-loader-badge" aria-hidden="true">
+          <svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="33" class="track" /><circle cx="36" cy="36" r="33" class="arc" /></svg>
+          <b>360°</b>
+        </span>
+        <p class="tour-loader-eyebrow">Recorrido 360°</p>
+        <h2 id="tour-loader-title"></h2>
+        <div id="tour-loader-bar" class="tour-loader-bar"></div>
+        <p id="tour-loader-status" class="tour-loader-status">Preparando el recorrido…</p>
+      </div>
+      <ul class="tour-loader-tips">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12m0-1.5a1.5 1.5 0 0 1 3 0V12m0-.5a1.5 1.5 0 0 1 3 0V13m0-.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4.6 16.6a1.6 1.6 0 0 1 2.4-2.1L8 15.5"/></svg><span id="tour-tip-drag">Arrastrá para mirar alrededor</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><ellipse cx="12" cy="17" rx="8" ry="3.2"/><ellipse cx="12" cy="17" rx="3.4" ry="1.3" fill="currentColor" stroke="none"/><path d="M12 3.5v8m-3-3l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tocá los círculos del piso para moverte</span></li>
+      </ul>
+    </div>
     <!-- Plano de la tipología (si tiene): cada ambiente se toca y abre su render -->
     <div id="unit-plan" class="unit-plan-wrap" hidden>
       <div class="unit-plan-stage">
@@ -155,15 +233,16 @@
       <h3 id="unit-sheet-title"></h3>
       <dl id="unit-sheet-areas" class="unit-sheet-areas"></dl>
       <ul id="unit-sheet-rooms" class="unit-sheet-rooms"></ul>
+      <div id="unit-sheet-actions" class="u-actions"></div>
     </aside>
     <!-- FT: ficha técnica del prototipo, abajo a la izquierda -->
     <button id="unit-view-sheet" class="glass unit-ft-btn" aria-expanded="false" title="Ficha técnica">Ficha técnica</button>
     <div class="unit-view-bar">
-      <div class="unit-view-title glass"><strong id="unit-view-name"></strong><em id="unit-view-status" class="badge"></em></div>
+      <div class="unit-view-title glass"><strong id="unit-view-name"></strong><em id="unit-view-status" class="badge"></em><span id="unit-view-tools" class="unit-view-tools"></span></div>
       <div class="unit-view-actions">
         <button id="unit-view-renders" class="glass search-btn">Ver unidad</button>
         <button id="unit-view-tour" class="glass search-btn">Recorrido 360°</button>
-        <a id="unit-view-wa" class="search-btn wa-btn" target="_blank" rel="noopener">Consultar por WhatsApp</a>
+        <a id="unit-view-wa" class="search-btn wa-btn" target="_blank" rel="noopener">Consultar</a>
         <button id="unit-view-skip" class="glass search-btn" hidden>Saltar video</button>
       </div>
       <button id="unit-view-close" class="glass icon-btn" aria-label="Volver al edificio">×</button>
@@ -285,5 +364,46 @@
       </div>
     </div>
   </div>
+
+  <!-- Comparador de favoritas: una columna por unidad -->
+  <div id="compare-modal" class="modal sales-modal" hidden>
+    <div class="modal-backdrop" data-close-compare></div>
+    <div class="modal-card compare-card" role="dialog" aria-modal="true" aria-labelledby="compare-title">
+      <div class="modal-head">
+        <h2 id="compare-title">Comparar unidades</h2>
+        <button class="close" data-close-compare aria-label="Cerrar">×</button>
+      </div>
+      <div class="compare-scroll"><table id="compare-table" class="compare-table"></table></div>
+    </div>
+  </div>
+
+  <!-- Consulta: arma el mensaje de WhatsApp con los datos de la unidad -->
+  <div id="ask-modal" class="modal sales-modal" hidden>
+    <div class="modal-backdrop" data-close-ask></div>
+    <form id="ask-form" class="modal-card ask-card" role="dialog" aria-modal="true" aria-labelledby="ask-title" novalidate>
+      <div class="modal-head">
+        <h2 id="ask-title">Consultar</h2>
+        <button type="button" class="close" data-close-ask aria-label="Cerrar">×</button>
+      </div>
+      <div id="ask-unit" class="ask-unit" hidden></div>
+      <label class="field"><span>Nombre</span><input id="ask-name" name="name" autocomplete="name" required /></label>
+      <label class="field"><span>Mensaje</span><textarea id="ask-msg" name="msg" rows="3"></textarea></label>
+      <label class="field"><span>¿Cuándo te contactamos?</span>
+        <select id="ask-when" name="when">
+          <option value="">Cuando puedan</option>
+          <option value="por la mañana">Por la mañana</option>
+          <option value="por la tarde">Por la tarde</option>
+          <option value="después de las 18 h">Después de las 18 h</option>
+        </select>
+      </label>
+      <button type="submit" class="btn ask-submit">Enviar por WhatsApp</button>
+      <p class="ask-note">Se abre WhatsApp con el mensaje listo: solo tenés que enviarlo.</p>
+    </form>
+  </div>
+
+  <!-- Ficha de la unidad para imprimir o guardar como PDF (solo se ve al imprimir) -->
+  <div id="print-sheet" class="print-sheet" aria-hidden="true"></div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>
